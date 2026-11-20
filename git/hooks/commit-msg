@@ -1,0 +1,105 @@
+#!/usr/bin/env python3
+import json
+import os
+import re
+import subprocess
+import sys
+import unicodedata
+from pathlib import Path
+
+
+SUBJECT_PATTERN = r"^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\([^()\s]+\))?!?: \S.*$"
+MAX_SUBJECT = 72
+EXEMPT_PREFIXES = ("Merge ", 'Revert "', 'Reapply "', "fixup! ", "squash! ", "amend! ")
+HANGUL = re.compile(r"[\u1100-\u11FF\u3131-\u318E\uAC00-\uD7A3]")
+ATTRIBUTION = re.compile(r"^co-authored-by:", re.IGNORECASE | re.MULTILINE)
+
+
+def read_message(path):
+    result = subprocess.run(
+        ["git", "config", "--get", "core.commentChar"],
+        stdout=subprocess.PIPE,
+        text=True,
+    )
+    comment = result.stdout.rstrip("\n")
+    if comment in ("", "auto"):
+        comment = "#"
+    scissors = f"{comment} ------------------------ >8 ------------------------"
+    lines = []
+    for line in path.read_text(encoding="utf-8", errors="replace").split("\n"):
+        if line == scissors:
+            break
+        if not line.startswith(comment):
+            lines.append(line)
+    return unicodedata.normalize("NFC", "\n".join(lines))
+
+
+def commit_options():
+    result = subprocess.run(
+        ["git", "show", "HEAD:.harness.json"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+    )
+    config = json.loads(result.stdout) if result.returncode == 0 else {}
+    options = config.get("commit", {}) if isinstance(config, dict) else None
+    if not isinstance(options, dict):
+        raise ValueError
+    return options
+
+
+def reject(reason, expected="type(scope): English imperative summary", max_subject=MAX_SUBJECT):
+    print(f"commit-msg: {reason}", file=sys.stderr)
+    print(f"expected: {expected} (<= {max_subject} chars, no Co-Authored-By)", file=sys.stderr)
+    print("example: fix(editorial): keep median labels inside the chart", file=sys.stderr)
+    return 1
+
+
+def chain():
+    result = subprocess.run(
+        ["git", "rev-parse", "--path-format=absolute", "--git-common-dir"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+    )
+    if result.returncode == 0:
+        hook = Path(os.fsdecode(result.stdout.removesuffix(b"\n"))) / "hooks" / "commit-msg"
+        if hook.is_file() and os.access(hook, os.X_OK) and not hook.samefile(__file__):
+            os.execv(hook, [str(hook), *sys.argv[1:]])
+    return 0
+
+
+def main():
+    message = read_message(Path(sys.argv[1]))
+    subject = next((line for line in message.split("\n") if line.strip()), "")
+    if subject.startswith(EXEMPT_PREFIXES):
+        return chain()
+
+    try:
+        options = commit_options()
+        source = options.get("subject_pattern", SUBJECT_PATTERN)
+        max_subject = options.get("max_subject", MAX_SUBJECT)
+        allow_hangul = options.get("allow_hangul", False)
+        if not isinstance(source, str) or type(max_subject) is not int or not isinstance(allow_hangul, bool):
+            raise ValueError
+        pattern = re.compile(source)
+    except (ValueError, re.error, OverflowError):
+        return reject("invalid .harness.json" if subject else "empty message")
+
+    if not subject:
+        reason = "empty message"
+    elif not pattern.match(subject):
+        reason = "subject does not match the pattern"
+    elif len(subject) > max_subject:
+        reason = "subject is too long"
+    elif not allow_hangul and HANGUL.search(message):
+        reason = "message contains Hangul"
+    elif ATTRIBUTION.search(message):
+        reason = "Co-Authored-By is not allowed"
+    else:
+        return chain()
+
+    expected = options.get("subject_pattern", "type(scope): English imperative summary")
+    return reject(reason, expected, max_subject)
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

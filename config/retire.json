@@ -1,0 +1,18 @@
+{
+  "paths": [
+    ".claude/skills/interview",
+    ".claude/skills/morning-brief",
+    ".claude/commands/pre-push-check.md",
+    ".codex/skills/chronicle",
+    ".codex/skills/codex-goal-planner",
+    ".codex/skills/frontend-polish-review",
+    ".codex/skills/gpt-tasteskill",
+    ".codex/skills/imagegen-frontend-mobile",
+    ".codex/skills/redesign-skill",
+    ".codex/skills/soft-skill",
+    ".codex/skills/taste-skill"
+  ],
+  "claude_plugins": [
+    "taste-skill@taste-skill"
+  ]
+}

@@ -1,0 +1,8 @@
+#!/bin/sh
+# bell-harness: run the repository's own hook with the same name, if it has one.
+name=$(basename "$0")
+dir=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null) || exit 0
+hook="$dir/hooks/$name"
+[ -x "$hook" ] || exit 0
+[ "$hook" -ef "$0" ] && exit 0
+exec "$hook" "$@"
