@@ -70,3 +70,8 @@ GUARD: real home unchanged
 exit: 0
 PRIVACY: clean
 DECISIONS: clean
+
+## Live evals after install (python3 evals/run.py)
+- Full run: 21/22. codex flow-next answered the right item by its title instead of its slug; the grader now accepts the title and Korean wording. Flow fixtures gained the README their roadmap marks as done.
+- Rerun of the flow cases:
+PASS claude flow-gate / PASS codex flow-gate / PASS claude flow-next / PASS codex flow-next (4/4)
