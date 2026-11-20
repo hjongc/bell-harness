@@ -38,7 +38,7 @@ def prepare(fixture, tmp):
     target = Path(tmp) / "repo"
     shutil.copytree(str(FIXTURES / fixture), str(target))
     git = ["git", "-c", "user.name=Eval", "-c", "user.email=eval@example.com"]
-    for args in (["init", "-q", "-b", "main"], ["add", "-A"], ["commit", "-q", "-m", "fixture"]):
+    for args in (["init", "-q", "-b", "main"], ["add", "-A"], ["commit", "-q", "-m", "chore: add eval fixture"]):
         subprocess.run(git + args, cwd=str(target), check=True, stdout=subprocess.DEVNULL,
                        stderr=subprocess.DEVNULL)
     return target

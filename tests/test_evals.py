@@ -5,7 +5,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from harness_env import ROOT, make_env, write_stub
+from harness_env import HOOKS, ROOT, make_env, write_stub
 
 RUN = ROOT / "evals/run.py"
 SKILLS = sorted(p.name for p in (ROOT / "skills").iterdir() if p.is_dir())
@@ -42,6 +42,9 @@ class EvalsTest(unittest.TestCase):
         self.addCleanup(holder.cleanup)
         self.tmp = Path(holder.name)
         self.env = make_env(self.tmp)
+        # Fixture commits pass through the harness hooks, as on an installed machine.
+        subprocess.run(["git", "config", "--file", self.env["GIT_CONFIG_GLOBAL"], "core.hooksPath", str(HOOKS)],
+                       check=True)
 
     def stub(self, host, skills, answer):
         build = claude_events if host == "claude" else codex_events

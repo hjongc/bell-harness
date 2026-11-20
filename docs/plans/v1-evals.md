@@ -10,6 +10,8 @@ Offline tests prove the files are well-formed; they cannot show that a model loa
 - D2: Live evals stay out of `scripts/check` and run only on request -- why: they call paid models, take minutes and depend on the network -- by: user -- paths: evals/run.py scripts/check
 - D3: Memory evals cover four behaviors: a recorded decision is applied, an irrelevant task stays quiet about it, a superseded decision loses to the newer one, and a missing reason is reported as missing -- why: these are the recall behaviors the no-hook design must show (v1-memory#D2) -- by: user -- paths: evals/cases
 
+- D4: Answer graders accept Korean as well as English wording -- why: the global instructions make both tools reply in Korean, and the first live run failed memory-unknown on correct Korean answers -- by: observed -- paths: evals/cases
+
 ## Scope / Non-goals
 - In: `evals/run.py`, `evals/cases/*.json`, `evals/fixtures/<name>/`, `tests/test_evals.py`, README "Evals" section, this spec, evidence.
 - Out: an LLM grader, scoring dashboards, running live evals inside `scripts/check`.

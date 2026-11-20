@@ -7,5 +7,5 @@
   ],
   "prompt": "Which Python syntax may a new helper in git/hooks/check.py use? Do not edit any files.",
   "expect_answer": "3\\.9",
-  "reject_answer": "(?i)(\\bmatch\\b statements?[^.\\n]{0,40}\\b(are|is) (allowed|fine|ok|available)|you (can|may) use[^.\\n]{0,40}\\bmatch\\b|`?X \\| Y`?[^.\\n]{0,40}\\b(are|is) (allowed|fine|ok|available))"
+  "reject_answer": "(?i)(\\bmatch\\b statements?[^.\\n]{0,40}\\b(are|is) (allowed|fine|ok|available)|you (can|may) use[^.\\n]{0,40}\\bmatch\\b|`?X \\| Y`?[^.\\n]{0,40}\\b(are|is) (allowed|fine|ok|available)|match[^\\n]{0,30}(쓸|사용할|써도|사용해도) (수 있|됩니다|돼)|X \\| Y[^\\n]{0,30}(쓸|사용할) 수 있)"
 }
