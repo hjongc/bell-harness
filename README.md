@@ -1,6 +1,6 @@
 # bell-harness
 
-One working setup for [Claude Code](https://claude.com/claude-code) and [Codex](https://developers.openai.com/codex), shared across machines: global instructions both tools read, six skills, git hooks that enforce commit rules and block staged secrets, and scripts that install, check and undo all of it.
+One working setup for [Claude Code](https://claude.com/claude-code) and [Codex](https://developers.openai.com/codex), shared across machines: global instructions both tools read, seven skills, git hooks that enforce commit rules and block staged secrets, and scripts that install, check and undo all of it.
 
 Both tools read the same instructions and skills. Project memory lives in git (specs with decision records), so a decision made in one tool is visible to the other.
 
@@ -35,7 +35,7 @@ Entries named `paseo*`, `synced` or `.system` are never touched, and setup refus
 
 ```sh
 bin/doctor                      # PASS/WARN/FAIL per check; exit 1 on any FAIL
-bin/doctor --project ~/code/app # also check a project: AGENTS.md headings, commit messages, stale decisions
+bin/doctor --project ~/code/app # also check project instructions, table paths, decisions and commit messages
 bin/doctor --discovery          # ask claude and codex which skills they actually load
 bin/setup --restore <id>        # undo one backup (or: all), skipping anything changed since setup
 ```
@@ -46,6 +46,7 @@ Restore undoes settings key by key, so settings changed after setup survive. Uni
 
 | Skill | Use it to |
 |---|---|
+| `init` | Fill or refresh a project's AGENTS.md and record the decisions behind its constraints |
 | `probe` | Pressure-test an idea or feature with one hard question at a time and record the design |
 | `spec` | Turn an agreed design into a spec another agent can execute without judgment calls |
 | `preflight` | Review a diff against its spec before pushing |
@@ -65,9 +66,11 @@ Decisions live in the spec that made them, one line each:
 
 A project's AGENTS.md has a Sources of truth table (task, where to look, constraints and the decision ids behind them), and the global instructions tell both tools to grep `docs/plans` before changing behavior. `python3 lib/decisions.py` and `bin/doctor --project` report malformed records and decisions that cite deleted paths. There is no automatic recall hook; see `docs/plans/v1-memory.md` for why.
 
+`docs/plans/roadmap.md` lists specs in work order. The next unchecked item can start when its spec says `Status: approved`. Actions listed in the global approval rules still need approval.
+
 ## Start a project
 
-Copy `templates/AGENTS.md` into the project, fill it in, and add a `CLAUDE.md` containing `@AGENTS.md`. A project can allow a Korean commit summary with a `.harness.json` file (`{"commit": {"allow_hangul": true}}`); the hook reads it from the last commit, so a commit cannot relax its own rules.
+Copy `templates/AGENTS.md` into the project and fill it in, or ask an agent to run the `init` skill. A project can allow a Korean commit summary with a `.harness.json` file (`{"commit": {"allow_hangul": true}}`); the hook reads it from the last commit, so a commit cannot relax its own rules.
 
 ## Evals
 
@@ -75,7 +78,7 @@ Copy `templates/AGENTS.md` into the project, fill it in, and add a `CLAUDE.md` c
 python3 evals/run.py [--host claude|codex|all] [--case <id>]... [--jobs N] [--timeout S] [--json <file>]
 ```
 
-Each case sends a fixed prompt to the real `claude` and `codex` commands in a temporary copy of a fixture repository (`evals/fixtures/`), then grades which harness skill was loaded and regular expressions over the final answer. Four routing cases check that a small edit loads no skill and that design, spec and eval requests load `probe`, `spec` and `eval`. Four memory cases check that a recorded decision is applied, an unrelated task stays quiet about it, a superseded decision loses to the newer one, and a missing reason is reported as missing. The runner calls paid models, so it is not part of `scripts/check`. Run it after installing the harness and whenever a model or an instruction changes.
+Each case sends a fixed prompt to the real `claude` and `codex` commands in a temporary copy of a fixture repository (`evals/fixtures/`), then grades which harness skill was loaded and regular expressions over the final answer. Five routing cases check that a small edit loads no skill and that design, spec, eval and project initialization requests load `probe`, `spec`, `eval` and `init`. Four memory cases check that a recorded decision is applied, an unrelated task stays quiet about it, a superseded decision loses to the newer one, and a missing reason is reported as missing. Two flow cases check roadmap order and the approval request before publishing. The runner calls paid models, so it is not part of `scripts/check`. Run it after installing the harness and whenever a model or an instruction changes.
 
 ## Develop
 

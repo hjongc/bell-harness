@@ -114,6 +114,22 @@ class EvalsTest(unittest.TestCase):
         self.assertEqual(result.stdout.count("PASS"), 1)
         self.assertNotIn("route-probe", result.stdout)
 
+    def test_init_and_flow_cases(self):
+        for case, skills, answer in (
+            ("route-init", ["init"], "프로젝트 지침을 정리합니다."),
+            ("flow-next", [], "다음 작업은 add-changelog입니다."),
+            ("flow-gate", [], "게시 승인을 부탁드립니다."),
+        ):
+            with self.subTest(case=case):
+                self.both(skills, answer)
+                result = self.run_evals("--case", case)
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                self.assertIn("EVALS: 2/2 passed", result.stdout)
+        self.both([], "승인을 받아 게시했습니다.")
+        result = self.run_evals("--case", "flow-gate")
+        self.assertEqual(result.returncode, 1, result.stdout)
+        self.assertIn("answer matches reject_answer", result.stdout)
+
     def test_usage_and_missing_host(self):
         self.both([], "x")
         self.assertEqual(self.run_evals("--case", "nope").returncode, 2)
@@ -123,7 +139,7 @@ class EvalsTest(unittest.TestCase):
 
     def test_case_files_are_consistent(self):
         files = sorted((ROOT / "evals/cases").glob("*.json"))
-        self.assertEqual(len(files), 8)
+        self.assertEqual(len(files), 11)
         for path in files:
             case = json.loads(path.read_text(encoding="utf-8"))
             self.assertEqual(case["id"], path.stem)

@@ -12,6 +12,7 @@ from pathlib import Path
 CANDIDATE = re.compile(r"^- D\d")
 HEAD = re.compile(r"^- D([1-9][0-9]*): (\S.*)$")
 REF = re.compile(r"^[a-z0-9][a-z0-9.-]*#D[1-9][0-9]*$")
+ROADMAP_ITEM = re.compile(r"^- \[( |x)\] ([a-z0-9][a-z0-9.-]*): ")
 SEPARATOR = " -- "
 ORDER = ("why", "by", "paths", "supersedes")
 REQUIRED = ("why", "by")
@@ -96,9 +97,10 @@ def parse(text, slug):
 def check(root):
     """Return a list of problems in root/docs/plans/*.md, each 'path:line: message'."""
     root = Path(root)
+    plans = root / "docs/plans"
     problems = []
     decisions = []
-    for path in sorted((root / "docs/plans").glob("*.md")):
+    for path in sorted(plans.glob("*.md")):
         name = path.relative_to(root).as_posix()
         found, errors = parse(path.read_text(encoding="utf-8"), path.stem)
         for number, message in errors:
@@ -130,6 +132,15 @@ def check(root):
             if not (root / item).exists():
                 problems.append("{}:{}: {} cites missing path {}".format(
                     decision.source, decision.line, decision.ref, item))
+
+    roadmap = plans / "roadmap.md"
+    if roadmap.is_file():
+        for number, line in enumerate(roadmap.read_text(encoding="utf-8").splitlines(), 1):
+            item = ROADMAP_ITEM.match(line)
+            if item:
+                slug = item.group(2)
+                if not (plans / (slug + ".md")).is_file():
+                    problems.append("docs/plans/roadmap.md:{}: unknown spec {}".format(number, slug))
     return problems
 
 

@@ -61,20 +61,33 @@ class DoctorTests(unittest.TestCase):
         project = fx.tmp / "project"
         init_repo(project, fx.env)
         fx.git("config", "--file", fx.env["GIT_CONFIG_GLOBAL"], "core.hooksPath", str(fx.harness / "git/hooks"))
-        (project / "AGENTS.md").write_text((fx.harness / "templates/AGENTS.md").read_text(encoding="utf-8"),
-                                           encoding="utf-8")
+        agents = project / "AGENTS.md"
+        template = (fx.harness / "templates/AGENTS.md").read_text(encoding="utf-8")
+        template = template.replace("<Entry points, tests, data or designs>",
+                                    "`<placeholder>`, `*.py`, `helper.py`, `docs/plans`")
+        agents.write_text(template, encoding="utf-8")
         (project / "CLAUDE.md").write_text("@AGENTS.md\n", encoding="utf-8")
         (project / "helper.py").write_text("", encoding="utf-8")
         (project / "docs/plans").mkdir(parents=True)
         (project / "docs/plans/first.md").write_text(TEMPLATE_DECISIONS, encoding="utf-8")
         fx.git("add", "-A", cwd=project)
         fx.git("commit", "-q", "-m", "feat: start the project", cwd=project)
+        checked_at = fx.git("rev-parse", "--short", "HEAD", cwd=project).strip()
+        agents.write_text(template.replace("<short commit>", checked_at), encoding="utf-8")
 
         result = self.doctor("--project", str(project))
         self.assertEqual(self.lines(result, "FAIL"), [], result.stdout)
         project_warnings = [line for line in self.lines(result, "WARN")
-                            if line.startswith(("WARN project", "WARN stale", "WARN commit"))]
+                            if line.startswith(("WARN project", "WARN stale", "WARN commit", "WARN table"))]
         self.assertEqual(project_warnings, [], result.stdout)
+        self.assertIn("PASS table check: no table path changed since " + checked_at, result.stdout)
+
+        (project / "docs/plans/second.md").write_text("# Second\n", encoding="utf-8")
+        fx.git("add", "docs/plans/second.md", cwd=project)
+        fx.git("commit", "-q", "-m", "docs: add the second plan", cwd=project)
+        result = self.doctor("--project", str(project))
+        self.assertIn("WARN table check: 1 changed path(s) under table rows since " + checked_at, result.stdout)
+        self.assertIn("rerun the init skill ('docs/plans/second.md')", result.stdout)
 
         (project / "helper.py").unlink()
         fx.git("add", "-A", cwd=project)
@@ -85,6 +98,42 @@ class DoctorTests(unittest.TestCase):
         warnings = "\n".join(self.lines(result, "WARN"))
         self.assertIn("commit messages: rejected by the harness hook: " + sha, warnings)
         self.assertIn("stale decision: docs/plans/first.md:2: first#D1 cites missing path helper.py", warnings)
+        self.assertIn('stale table: helper.py (row "<Kind of change>")', warnings)
+
+        agents.write_text(template.replace("<short commit>", "deadbee"), encoding="utf-8")
+        self.assertIn("WARN table check: unknown commit deadbee",
+                      self.doctor("--project", str(project)).stdout)
+        agents.write_text(template.replace("Checked at <short commit>\n", ""), encoding="utf-8")
+        self.assertIn("WARN table check: no Checked at line (run the init skill)",
+                      self.doctor("--project", str(project)).stdout)
+        agents.unlink()
+        result = self.doctor("--project", str(project))
+        self.assertNotIn("table check:", result.stdout)
+        self.assertNotIn("stale table:", result.stdout)
+
+    def test_table_check_counts_changes_after_the_refresh_commit(self):
+        fx = self.fx
+        project = fx.tmp / "refresh"
+        init_repo(project, fx.env)
+        fx.git("config", "--file", fx.env["GIT_CONFIG_GLOBAL"], "core.hooksPath", str(fx.harness / "git/hooks"))
+        template = (fx.harness / "templates/AGENTS.md").read_text(encoding="utf-8")
+        template = template.replace("<Entry points, tests, data or designs>", "`helper.py`")
+        (project / "helper.py").write_text("a = 1\n", encoding="utf-8")
+        (project / "AGENTS.md").write_text(template.replace("Checked at <short commit>\n", ""), encoding="utf-8")
+        fx.git("add", "-A", cwd=project)
+        fx.git("commit", "-q", "-m", "feat: start the project", cwd=project)
+        parent = fx.git("rev-parse", "--short", "HEAD", cwd=project).strip()
+        # One refresh commit changes a table path and records the marker pointing at its parent.
+        (project / "helper.py").write_text("a = 2\n", encoding="utf-8")
+        (project / "AGENTS.md").write_text(template.replace("<short commit>", parent), encoding="utf-8")
+        fx.git("add", "-A", cwd=project)
+        fx.git("commit", "-q", "-m", "docs: refresh the agents table", cwd=project)
+        result = self.doctor("--project", str(project))
+        self.assertIn("PASS table check: no table path changed since " + parent, result.stdout)
+        (project / "helper.py").write_text("a = 3\n", encoding="utf-8")
+        fx.git("commit", "-q", "-am", "fix: change the helper", cwd=project)
+        result = self.doctor("--project", str(project))
+        self.assertIn("WARN table check: 1 changed path(s)", result.stdout)
 
     def test_discovery(self):
         result = self.doctor("--discovery")

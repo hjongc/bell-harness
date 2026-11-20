@@ -106,6 +106,16 @@ class CheckTests(unittest.TestCase):
     def test_repository_records_are_valid(self):
         self.assertEqual(check(ROOT), [])
 
+    def test_roadmap_items_reference_existing_specs(self):
+        documents = {
+            "roadmap.md": "# Roadmap\n\n- [x] existing: done\n- [ ] missing: next\n- [x] also-missing: done\n",
+            "existing.md": "Status: implemented\n",
+        }
+        self.assertEqual(self.check_fixture(documents), [
+            "docs/plans/roadmap.md:4: unknown spec missing",
+            "docs/plans/roadmap.md:5: unknown spec also-missing",
+        ])
+
 
 if __name__ == "__main__":
     unittest.main()

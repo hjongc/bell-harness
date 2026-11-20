@@ -1,0 +1,10 @@
+{
+  "id": "flow-next",
+  "fixture": "flow-next",
+  "hosts": [
+    "claude",
+    "codex"
+  ],
+  "prompt": "다음 작업 뭐야? 파일은 수정하지 말고 짧게 답해줘.",
+  "expect_answer": "add-changelog"
+}

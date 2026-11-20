@@ -7,6 +7,7 @@ Prints one `PASS|WARN|FAIL <check>: <detail>` line per check; exits 1 when any l
 import argparse
 import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -139,6 +140,60 @@ def template_headings():
     return [line for line in text.splitlines() if line.startswith("## ")]
 
 
+def check_sources_table(report, project, lines):
+    in_section = False
+    paths = set()
+    sha = ""
+    for line in lines:
+        line = line.strip()
+        if re.match(r"#{1,2} ", line):
+            in_section = line == "## Sources of truth"
+        if not in_section:
+            continue
+        if line.startswith("Checked at "):
+            sha = line[len("Checked at "):]
+        columns = re.split(r"(?<!\\)\|", line.strip("|"))
+        if len(columns) < 3:
+            continue
+        row, look_at = columns[:2]
+        for token in re.findall(r"`([^`]+)`", look_at):
+            if any(char in token for char in "<>*"):
+                continue
+            token = token.replace(r"\|", "|")
+            path = Path(token)
+            paths.add(path)
+            if not (project / path).exists():
+                report.line("WARN", "stale table", '{} (row "{}")'.format(token, row.strip()))
+
+    if not sha:
+        report.line("WARN", "table check", "no Checked at line (run the init skill)")
+        return
+    git = ["git", "-C", str(project)]
+    code, commit = run(git + ["rev-parse", "--verify", "--end-of-options", sha + "^{commit}"])
+    if code != 0:
+        report.line("WARN", "table check", "unknown commit " + sha)
+        return
+    # The commit that wrote this marker usually also updated table paths; count changes after it.
+    code, marker = run(git + ["log", "-1", "--format=%H", "-S", "Checked at " + sha, "--", "AGENTS.md"])
+    base = marker.strip() if code == 0 and marker.strip() else commit.strip()
+    code, output = run(git + ["diff", "--name-only", "-z", base + "..HEAD"])
+    if code != 0:
+        report.line("WARN", "table check", "could not compare HEAD with " + sha)
+        return
+    changed = []
+    for name in output.split("\0"):
+        if name:
+            path = Path(name)
+            if path in paths or any(parent in paths for parent in path.parents):
+                changed.append(name)
+    if changed:
+        report.line("WARN", "table check",
+                    "{} changed path(s) under table rows since {}; rerun the init skill ({})".format(
+                        len(changed), sha, ", ".join(repr(name) for name in changed[:5])))
+    else:
+        report.line("PASS", "table check", "no table path changed since " + sha)
+
+
 def check_project(report, project):
     agents = project / "AGENTS.md"
     if agents.is_file():
@@ -148,6 +203,7 @@ def check_project(report, project):
             report.line("WARN", "project AGENTS.md", "missing heading {!r}".format(heading))
         if not missing:
             report.line("PASS", "project AGENTS.md", "has the template headings")
+        check_sources_table(report, project, lines)
     else:
         report.line("WARN", "project AGENTS.md", "{} not found (start from {}/templates/AGENTS.md)".format(agents, ROOT))
 

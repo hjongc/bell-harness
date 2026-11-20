@@ -12,11 +12,13 @@
 
 ## Sources of truth
 
-Where to look before a kind of change. Decisions live in `docs/plans/<slug>.md` under `## Decisions`; cite them as `<slug>#D<n>`.
+Where to look before a kind of change. Planned work is listed in order in docs/plans/roadmap.md. Decisions live in `docs/plans/<slug>.md` under `## Decisions`; cite them as `<slug>#D<n>`.
 
 | Task | Look at | Constraints and why |
 |---|---|---|
 | <Kind of change> | <Entry points, tests, data or designs> | <Rule, with the decision id or document that explains it> |
+
+Checked at <short commit>
 
 ## Commands
 

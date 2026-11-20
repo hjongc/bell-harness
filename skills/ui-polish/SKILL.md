@@ -1,6 +1,6 @@
 ---
 name: ui-polish
-description: Inspect and polish a rendered UI against a reference before calling it done. Use when building, polishing, reviewing or QA-ing a UI that is rendered - web pages, app screens, and PDF or print output - and before reporting any UI task as complete. Renders the real screen at 1440, 768 and 390 px (or PDF pages as images), compares it with the project's design-system doc, an approved baseline screenshot or a design file, fixes visual, responsive, accessibility and interaction issues, saves screenshots as evidence, and reports a verdict (pass, fixes needed, or withheld: no baseline).
+description: "Inspect and polish a rendered UI against a reference before calling it done. Use when building, polishing, reviewing or QA-ing a UI that is rendered - web pages, app screens, and PDF or print output - and before reporting any UI task as complete. Renders the real screen at 1440, 768 and 390 px (or PDF pages as images), compares it with the project's design-system doc, an approved baseline screenshot or a design file, fixes visual, responsive, accessibility and interaction issues, saves screenshots as evidence, and reports a verdict (pass, fixes needed, or withheld: no baseline)."
 ---
 
 # UI Polish
