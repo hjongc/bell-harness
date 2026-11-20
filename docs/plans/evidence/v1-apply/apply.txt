@@ -1,0 +1,77 @@
+# Step 5: apply on the author's Mac (paths shown with ~)
+
+## bin/doctor --discovery after setup and the Codex config edit
+PASS prerequisite: git
+PASS prerequisite: python3
+PASS git identity: user.name
+PASS git identity: user.email
+PASS host: claude
+PASS host: codex
+PASS link: ~/.claude/skills/eval
+PASS link: ~/.agents/skills/eval
+PASS link: ~/.claude/skills/preflight
+PASS link: ~/.agents/skills/preflight
+PASS link: ~/.claude/skills/probe
+PASS link: ~/.agents/skills/probe
+PASS link: ~/.claude/skills/spec
+PASS link: ~/.agents/skills/spec
+PASS link: ~/.claude/skills/ui-design
+PASS link: ~/.agents/skills/ui-design
+PASS link: ~/.claude/skills/ui-polish
+PASS link: ~/.agents/skills/ui-polish
+PASS link: ~/.codex/AGENTS.md
+PASS link: ~/.codex/rules/bell-harness.rules
+PASS instructions: ~/.claude/CLAUDE.md
+PASS git hooks: core.hooksPath is ~/Workspaces/setup/bell-harness/git/hooks
+PASS settings: ~/.claude/settings.json contains the harness fragment
+PASS retired: no retired item present
+PASS unmanaged skills: none
+PASS pinned model: none
+WARN harness repo: ~/Workspaces/setup/bell-harness has uncommitted changes
+PASS codex mcp: playwright
+PASS codex mcp: chrome-devtools
+PASS claude discovery: 6 harness skills, no retired ones
+PASS codex discovery: 6 harness skills, no retired ones
+
+## Codex config change (backup kept under ~/.bell-harness/backups/manual-codex-config-*)
+6c6
+< model_reasoning_effort = "max"
+---
+> model_reasoning_effort = "medium"
+15d14
+< model = "gpt-5.6-terra"
+24d22
+< model = "gpt-5.6-terra"
+
+## Codex execpolicy
+{"matchedRules":[{"prefixRuleMatch":{"matchedPrefix":["git","commit","--no-verify"],"decision":"forbidden"}}],"decision":"forbidden"}
+{"matchedRules":[]}
+
+## Preserved
+- Claude settings hooks: sha256 of the hooks key unchanged before and after setup (78452440974ce659)
+- Claude plugins: only taste-skill@taste-skill removed
+- Paseo skills, synced and ~/.codex/hooks.json untouched
+
+## Live evals (python3 evals/run.py --jobs 4)
+- Run 1: 0/16. The fixture commit message 'fixture' was rejected by the newly installed global commit-msg hook. Fixed: compliant message, and tests now commit fixtures through the harness hooks.
+- Run 2: 14/16. memory-unknown failed on both hosts although both answered correctly in Korean; the grader only knew English wording. Fixed: graders accept Korean (v1-evals#D4).
+- Run 3: 15/16. codex memory-unknown answered correctly with another Korean phrasing; grader widened and checked against every real answer so far and one fabricated answer.
+- Run 4 (final):
+PASS claude memory-apply: skills=[]
+PASS codex memory-apply: skills=[]
+PASS claude memory-quiet: skills=[]
+PASS codex memory-quiet: skills=[]
+PASS claude memory-superseded: skills=[]
+PASS codex memory-superseded: skills=[]
+PASS claude memory-unknown: skills=[]
+PASS codex memory-unknown: skills=[]
+PASS claude route-eval: skills=[eval]
+PASS codex route-eval: skills=[eval]
+PASS claude route-probe: skills=[probe]
+PASS codex route-probe: skills=[probe]
+PASS claude route-small-edit: skills=[]
+PASS codex route-small-edit: skills=[]
+PASS claude route-spec: skills=[spec]
+PASS codex route-spec: skills=[spec]
+EVALS: 16/16 passed
+evals exit: 0
