@@ -20,6 +20,7 @@ Decisions live in `docs/plans/<slug>.md` under `## Decisions`; `python3 lib/deci
 | Git hooks | `git/hooks/`, `tests/test_hooks.py` | Python 3.9, standard library (v1-repo#D1); commit format (v1-hooks-config#D1) |
 | Install and check scripts | `bin/`, `lib/harness.py`, `tests/test_setup.py`, `tests/test_doctor.py` | Tests use a temporary home only (v1-repo#D2) |
 | Instruction files and template | `global/`, `templates/AGENTS.md`, `tests/test_instructions.py` | Line limits, no emphasis (v1-hooks-config#D2); no pinned model (v1-hooks-config#D3) |
+| Skills | `skills/<name>/SKILL.md`, `tests/test_skills.py`, `SOURCES.md`, `licenses/` | Six shared skills, flow in SKILL.md and detail in references (v1-skills#D1, v1-skills#D2); third-party notices kept (v1-skills#D3) |
 | Decision records | `lib/decisions.py`, `tests/test_decisions.py` | Format and no recall hook (v1-memory#D1, v1-memory#D2) |
 | Anything tracked | `lib/privacy.py`, `.private-terms` | Public repository, no personal data (v1-repo#D3) |
 

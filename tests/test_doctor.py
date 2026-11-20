@@ -5,7 +5,7 @@ import unittest
 from pathlib import Path
 
 from harness_env import init_repo
-from test_setup import SKILLS, Fixture
+from test_setup import Fixture
 
 
 TEMPLATE_DECISIONS = "## Decisions\n- D1: Keep the helper -- why: reused -- by: user -- paths: helper.py\n"
@@ -96,8 +96,11 @@ class DoctorTests(unittest.TestCase):
         result = self.doctor("--discovery")
         self.assertEqual(result.returncode, 1, result.stdout)
         fails = "\n".join(self.lines(result, "FAIL"))
-        self.assertIn("claude discovery: missing probe, retired taste-skill:brandkit", fails)
-        self.assertIn("codex discovery: missing probe", fails)
+        claude_line = [line for line in fails.splitlines() if "claude discovery" in line][0]
+        self.assertIn("missing probe", claude_line)
+        self.assertNotIn("missing spec", claude_line)
+        self.assertIn("retired taste-skill:brandkit", claude_line)
+        self.assertIn("codex discovery: missing", fails)
 
 
 if __name__ == "__main__":

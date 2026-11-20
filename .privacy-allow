@@ -1,0 +1,2 @@
+# Glob and kind per line. The vendored JavaFX guide cites a placeholder home path as an anti-pattern example.
+skills/ui-design/data/stacks/javafx.csv home-path

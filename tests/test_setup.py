@@ -107,7 +107,9 @@ class Fixture(object):
         self.git("config", "--global", "user.email", "test@example.com")
         write_stub(self.tmp, "claude", CLAUDE_STUB.format(tmp=str(self.tmp)))
         write_stub(self.tmp, "codex", CODEX_STUB.format(tmp=str(self.tmp)))
-        self.set_discovery(list(SKILLS) + ["paseo-x"], SKILLS)
+        self.skill_names = sorted(p.name for p in (self.harness / "skills").iterdir()
+                                  if (p / "SKILL.md").is_file())
+        self.set_discovery(self.skill_names + ["paseo-x"], self.skill_names)
         self.build_home()
 
     def set_discovery(self, claude_skills, codex_skills):
