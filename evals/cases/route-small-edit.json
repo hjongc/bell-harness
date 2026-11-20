@@ -1,0 +1,10 @@
+{
+  "id": "route-small-edit",
+  "fixture": "basic",
+  "hosts": [
+    "claude",
+    "codex"
+  ],
+  "prompt": "There is a typo in README.md, please fix it.",
+  "expect_skill": null
+}

@@ -1,0 +1,10 @@
+{
+  "id": "route-spec",
+  "fixture": "basic",
+  "hosts": [
+    "claude",
+    "codex"
+  ],
+  "prompt": "We agreed on the design in docs/plans/notes-design.md. Please write the implementation spec for it.",
+  "expect_skill": "spec"
+}

@@ -1,0 +1,10 @@
+{
+  "id": "route-eval",
+  "fixture": "basic",
+  "hosts": [
+    "claude",
+    "codex"
+  ],
+  "prompt": "I changed the description of one of my skills. Compare how skill routing behaves before and after that change.",
+  "expect_skill": "eval"
+}

@@ -1,0 +1,11 @@
+{
+  "id": "memory-superseded",
+  "fixture": "memory",
+  "hosts": [
+    "claude",
+    "codex"
+  ],
+  "prompt": "Which format does the export report use? Answer briefly. Do not edit any files.",
+  "expect_answer": "JSON",
+  "reject_answer": "(?i)(recommend|should (use|write)|use)\\s+CSV"
+}

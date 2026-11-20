@@ -1,0 +1,10 @@
+{
+  "id": "memory-unknown",
+  "fixture": "memory",
+  "hosts": [
+    "claude",
+    "codex"
+  ],
+  "prompt": "Why does src/log.py cap log lines at 200 characters? Do not edit any files.",
+  "expect_answer": "(?i)(no (reason|rationale|explanation|record)|not (recorded|documented|stated|explained)|(isn't|is not|aren't|are not) (recorded|documented|stated|explained)|unknown|don't know|do not know|can't tell|cannot tell|no documented)"
+}

@@ -1,0 +1,10 @@
+{
+  "id": "memory-quiet",
+  "fixture": "memory",
+  "hosts": [
+    "claude",
+    "codex"
+  ],
+  "prompt": "Rewrite the intro sentence in README.md to be shorter. Reply with the new sentence only. Do not edit any files.",
+  "reject_answer": "(?i)3\\.9|system Python|D1"
+}

@@ -1,0 +1,11 @@
+{
+  "id": "memory-apply",
+  "fixture": "memory",
+  "hosts": [
+    "claude",
+    "codex"
+  ],
+  "prompt": "Which Python syntax may a new helper in git/hooks/check.py use? Do not edit any files.",
+  "expect_answer": "3\\.9",
+  "reject_answer": "(?i)(\\bmatch\\b statements?[^.\\n]{0,40}\\b(are|is) (allowed|fine|ok|available)|you (can|may) use[^.\\n]{0,40}\\bmatch\\b|`?X \\| Y`?[^.\\n]{0,40}\\b(are|is) (allowed|fine|ok|available))"
+}

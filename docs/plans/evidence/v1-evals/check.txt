@@ -1,0 +1,62 @@
+test_claude_settings (test_config.ConfigTests.test_claude_settings) ... ok
+test_codex_execpolicy_forbids_no_verify (test_config.ConfigTests.test_codex_execpolicy_forbids_no_verify) ... ok
+test_codex_rules (test_config.ConfigTests.test_codex_rules) ... ok
+test_retired_items (test_config.ConfigTests.test_retired_items) ... ok
+test_each_problem_is_reported_once (test_decisions.CheckTests.test_each_problem_is_reported_once) ... ok
+test_repository_records_are_valid (test_decisions.CheckTests.test_repository_records_are_valid) ... ok
+test_superseded_decision_may_cite_a_removed_path (test_decisions.CheckTests.test_superseded_decision_may_cite_a_removed_path) ... ok
+test_valid_records_have_no_problems (test_decisions.CheckTests.test_valid_records_have_no_problems) ... ok
+test_parses_fields_inside_the_section_only (test_decisions.ParseTests.test_parses_fields_inside_the_section_only) ... ok
+test_rejects_malformed_lines (test_decisions.ParseTests.test_rejects_malformed_lines) ... ok
+test_broken_link_fails (test_doctor.DoctorTests.test_broken_link_fails) ... ok
+test_discovery (test_doctor.DoctorTests.test_discovery) ... ok
+test_installed_machine_passes (test_doctor.DoctorTests.test_installed_machine_passes) ... ok
+test_leftovers_warn (test_doctor.DoctorTests.test_leftovers_warn) ... ok
+test_project_checks (test_doctor.DoctorTests.test_project_checks) ... ok
+test_answer_checks (test_evals.EvalsTest.test_answer_checks) ... ok
+test_case_files_are_consistent (test_evals.EvalsTest.test_case_files_are_consistent) ... ok
+test_case_filter (test_evals.EvalsTest.test_case_filter) ... ok
+test_extra_skill_fails (test_evals.EvalsTest.test_extra_skill_fails) ... ok
+test_matching_skill_passes (test_evals.EvalsTest.test_matching_skill_passes) ... ok
+test_non_harness_skill_is_ignored (test_evals.EvalsTest.test_non_harness_skill_is_ignored) ... ok
+test_null_expectation_fails_on_any_skill (test_evals.EvalsTest.test_null_expectation_fails_on_any_skill) ... ok
+test_plugin_prefix_is_stripped (test_evals.EvalsTest.test_plugin_prefix_is_stripped) ... ok
+test_usage_and_missing_host (test_evals.EvalsTest.test_usage_and_missing_host) ... ok
+test_wrong_skill_fails (test_evals.EvalsTest.test_wrong_skill_fails) ... ok
+test_hooks_are_executable_regular_files (test_hooks.HookFilesTests.test_hooks_are_executable_regular_files) ... ok
+test_accepts_default_and_exempt_subjects (test_hooks.HookTests.test_accepts_default_and_exempt_subjects) ... ok
+test_chains_repository_hooks_on_pass (test_hooks.HookTests.test_chains_repository_hooks_on_pass) ... ok
+test_hangul_setting_only_applies_from_head (test_hooks.HookTests.test_hangul_setting_only_applies_from_head) ... ok
+test_ignores_comments_and_text_below_scissors (test_hooks.HookTests.test_ignores_comments_and_text_below_scissors) ... ok
+test_rejects_invalid_head_config (test_hooks.HookTests.test_rejects_invalid_head_config) ... ok
+test_rejects_invalid_messages (test_hooks.HookTests.test_rejects_invalid_messages) ... ok
+test_scans_added_text_from_inherited_index (test_hooks.HookTests.test_scans_added_text_from_inherited_index) ... ok
+test_secret_allowlist_only_applies_from_head (test_hooks.HookTests.test_secret_allowlist_only_applies_from_head) ... ok
+test_symlinks_back_to_harness_do_not_loop (test_hooks.HookTests.test_symlinks_back_to_harness_do_not_loop) ... ok
+test_uses_committed_subject_pattern_and_length (test_hooks.HookTests.test_uses_committed_subject_pattern_and_length) ... ok
+test_uses_common_hooks_in_linked_worktree (test_hooks.HookTests.test_uses_common_hooks_in_linked_worktree) ... ok
+test_claude_imports_shared_instructions (test_instructions.InstructionTests.test_claude_imports_shared_instructions) ... ok
+test_instruction_lengths_and_wording (test_instructions.InstructionTests.test_instruction_lengths_and_wording) ... ok
+test_project_template_headings (test_instructions.InstructionTests.test_project_template_headings) ... ok
+test_allow_rule_matches_path_and_kind (test_privacy.PrivacyTests.test_allow_rule_matches_path_and_kind) ... ok
+test_detects_kinds_without_printing_matches (test_privacy.PrivacyTests.test_detects_kinds_without_printing_matches) ... ok
+test_repository_is_clean (test_privacy.PrivacyTests.test_repository_is_clean) ... ok
+test_python_sources_parse_with_python39_grammar (test_python39.Python39Tests.test_python_sources_parse_with_python39_grammar) ... ok
+test_dry_run_changes_nothing (test_setup.SetupTests.test_dry_run_changes_nothing) ... ok
+test_install_then_noop (test_setup.SetupTests.test_install_then_noop) ... ok
+test_preflight_failures_change_nothing (test_setup.SetupTests.test_preflight_failures_change_nothing) ... ok
+test_removed_skill_loses_its_links (test_setup.SetupTests.test_removed_skill_loses_its_links) ... ok
+test_restore_returns_the_previous_state (test_setup.SetupTests.test_restore_returns_the_previous_state) ... ok
+test_expected_skills_exist (test_skills.SkillTests.test_expected_skills_exist) ... ok
+test_skill_files_follow_the_format (test_skills.SkillTests.test_skill_files_follow_the_format) ... ok
+test_third_party_skills_have_licenses (test_skills.SkillTests.test_third_party_skills_have_licenses) ... ok
+test_search_runs_and_prints_results (test_ui_design.UiDesignSearchTest.test_search_runs_and_prints_results) ... ok
+
+----------------------------------------------------------------------
+Ran 53 tests in 39.313s
+
+OK
+GUARD: real home unchanged
+exit: 0
+PRIVACY: clean
+DECISIONS: clean

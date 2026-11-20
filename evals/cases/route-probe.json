@@ -1,0 +1,10 @@
+{
+  "id": "route-probe",
+  "fixture": "basic",
+  "hosts": [
+    "claude",
+    "codex"
+  ],
+  "prompt": "I want to build a small app that tracks my reading habits. Can you help me think it through before we build anything?",
+  "expect_skill": "probe"
+}

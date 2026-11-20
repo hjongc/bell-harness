@@ -69,6 +69,14 @@ A project's AGENTS.md has a Sources of truth table (task, where to look, constra
 
 Copy `templates/AGENTS.md` into the project, fill it in, and add a `CLAUDE.md` containing `@AGENTS.md`. A project can allow a Korean commit summary with a `.harness.json` file (`{"commit": {"allow_hangul": true}}`); the hook reads it from the last commit, so a commit cannot relax its own rules.
 
+## Evals
+
+```sh
+python3 evals/run.py [--host claude|codex|all] [--case <id>]... [--jobs N] [--timeout S] [--json <file>]
+```
+
+Each case sends a fixed prompt to the real `claude` and `codex` commands in a temporary copy of a fixture repository (`evals/fixtures/`), then grades which harness skill was loaded and regular expressions over the final answer. Four routing cases check that a small edit loads no skill and that design, spec and eval requests load `probe`, `spec` and `eval`. Four memory cases check that a recorded decision is applied, an unrelated task stays quiet about it, a superseded decision loses to the newer one, and a missing reason is reported as missing. The runner calls paid models, so it is not part of `scripts/check`. Run it after installing the harness and whenever a model or an instruction changes.
+
 ## Develop
 
 ```sh
