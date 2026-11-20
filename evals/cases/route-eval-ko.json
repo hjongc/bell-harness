@@ -1,0 +1,10 @@
+{
+  "id": "route-eval-ko",
+  "fixture": "basic",
+  "hosts": [
+    "claude",
+    "codex"
+  ],
+  "prompt": "스킬 설명 문구를 바꾸기 전과 후에 스킬 선택이 달라지는지 비교해서 확인하고 싶어. 어떻게 할지 계획만 알려줘.",
+  "expect_skill": "eval"
+}

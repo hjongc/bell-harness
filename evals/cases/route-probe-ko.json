@@ -1,0 +1,10 @@
+{
+  "id": "route-probe-ko",
+  "fixture": "basic",
+  "hosts": [
+    "claude",
+    "codex"
+  ],
+  "prompt": "독서 습관을 기록하는 앱을 새로 만들어 보고 싶어. 아직 아이디어 단계인데 같이 구체화해줘.",
+  "expect_skill": "probe"
+}

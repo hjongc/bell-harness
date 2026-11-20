@@ -10,7 +10,7 @@ The imported file is the agreement shared with Codex. These rules apply to Claud
 - Claude Code designs and reviews; Codex implements. Delegate an approved spec to the `codex:codex-rescue` subagent with `--fresh --wait`, passing the user goal, the spec path, the authorized scope and the completion check, and end the request with "Do not call create_goal." Use `--resume --wait` only to continue the latest Codex task of this session.
 - Leave the model unset so Codex uses its current default. Add `--effort` only when the task clearly needs more or less reasoning than the default, and announce the routing in one line.
 - Do work that takes less than about five minutes directly instead of delegating it.
-- When a delegated change returns, check the diff against the spec's scope and rerun the completion check yourself before reporting.
+- When a delegated change returns, check the diff against the spec's scope and rerun the completion check yourself before reporting. Codex's sandbox may refuse to write .git; when it reports that, review the working tree and make the commit yourself.
 
 ## Phase boundary
 

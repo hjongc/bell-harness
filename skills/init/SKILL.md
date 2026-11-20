@@ -9,18 +9,20 @@ Write down what an agent needs before changing this repository and cannot see in
 
 ## First run
 
-1. **Read what exists.** The current `AGENTS.md`, `CLAUDE.md`, `README.md`, `docs/`, `tasks/lessons.md`, any decision log or ADR, the build and test configuration, and `git log --oneline -50`. Keep every statement that is still true.
-2. **Explore.** Find entry points, the single check command, test layout, conventions that differ from the language default, and warnings in comments or docs ("do not", "deprecated", "must stay"). For a large repository, give each top-level directory to a fresh subagent with a fixed brief (entry points, conventions, warnings, commands) and treat their reports as claims to spot-check against the code.
-3. **Collect reasons.** For each constraint, find why it exists: a spec, a decision log, a commit message, an issue. Move each one into a `## Decisions` line in the relevant spec under `docs/plans/` (create `docs/plans/decisions.md` when no spec fits): `- D<n>: <decision> -- why: <reason> -- by: user|observed -- paths: <paths>`. Use `user` only when the source shows the user decided it. When no reason can be found, write the constraint without a decision id and list it under open questions in your report rather than inventing one.
-4. **Fill the template.** Use the headings of the harness `templates/AGENTS.md`. In `## Sources of truth`, write one row per kind of change: task, the files to look at, the constraint and its decision id. Keep the file under about 100 lines. Edit an existing `AGENTS.md` in place rather than rewriting it.
-5. **Mark the check.** Under the table write `Checked at <short sha of HEAD>`.
-6. **Leftovers.** When a project `CLAUDE.md` holds only `@AGENTS.md`, or content you merged into `AGENTS.md`, propose deleting it; Claude Code reads `AGENTS.md` directly. Delete only after the user agrees.
-7. **Verify.** Run `bin/doctor --project .` from the harness (or the project's own check) and fix every WARN you caused. Then report the rows you wrote, the decisions you moved, and the constraints without a known reason.
+1. **Baseline.** Record `git status --short` and the output of `bin/doctor --project .` from the harness. Uncommitted work that is already there belongs to someone else: leave it as it is, and when it changes during the run, keep it out of your commit.
+2. **Read what exists.** The current `AGENTS.md`, `CLAUDE.md`, `README.md`, `docs/`, `tasks/lessons.md`, any decision log or ADR, the build and test configuration, and `git log --oneline -50`. Keep every statement that is still true. When directories have their own `AGENTS.md`, read them, leave them unedited, and note where they overlap or disagree with the root table.
+3. **Explore.** Find entry points, the single check command, test layout, conventions that differ from the language default, and warnings in comments or docs ("do not", "deprecated", "must stay"). For a large repository, give each top-level directory to a fresh subagent with a fixed brief (entry points, conventions, warnings, commands) and treat their reports as claims to spot-check against the code.
+4. **Collect reasons.** For each constraint, find why it exists: a spec, a decision log, an issue, the documents a commit changed. A commit subject points to where to look; it is not itself evidence of the reason. Move each reason into a `## Decisions` line in the relevant spec under `docs/plans/` (create `docs/plans/decisions.md` when no spec fits): `- D<n>: <decision> -- why: <reason> -- by: user|observed -- paths: <paths>`. Use `user` only when the source shows the user decided it. When no reason can be found, write the constraint without a decision id and put it in your report as a question for the user rather than inventing one.
+5. **Fill the template.** Use the headings of the harness `templates/AGENTS.md`. In `## Sources of truth`, write one row per kind of change: task, the files to look at, the constraint and its decision id. Write the paths in the second column in backticks or as Markdown links; `bin/doctor` checks exactly those. Keep the file under about 100 lines. Edit an existing `AGENTS.md` in place rather than rewriting it.
+6. **Mark the check.** Under the table write `Checked at <short sha of HEAD>`.
+7. **Leftovers.** When a project `CLAUDE.md` holds only `@AGENTS.md`, or content you merged into `AGENTS.md`, propose deleting it; current Claude Code reads `AGENTS.md` directly. Delete only after the user agrees.
+8. **Commit and verify.** Stage only the files this run wrote, commit through the normal hooks (or leave the changes for review when the repository restricts commits), then run `bin/doctor --project .` again and fix every WARN that the baseline did not have.
+9. **Report.** The rows you wrote, the decisions you moved and from where, the constraints without a known reason as questions, overlaps with per-directory instruction files, and any step of this skill that was unclear.
 
 ## Refresh
 
-When `Checked at <sha>` exists, run `git diff --name-only <sha>..HEAD`. Recheck only the rows whose paths changed and any new top-level area, update those rows and decisions, and move the marker to the new HEAD. When nothing under the table changed, say so and change nothing.
+Run `bin/doctor --project .`. Its `stale table` and `table check` lines name the rows to recheck: a path that no longer exists, a file removed under a row, or a new top-level folder without a row. Update those rows and their decisions, then move the marker to the new HEAD in the same commit. When doctor reports nothing and the user names no changed constraint, say so and change nothing.
 
 ## Scope
 
-One root `AGENTS.md`; no per-directory files. Commit through the normal hooks, or leave the changes for the user to review when the repository restricts commits.
+One root `AGENTS.md`; this skill does not create per-directory files.

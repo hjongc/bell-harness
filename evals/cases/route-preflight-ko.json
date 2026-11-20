@@ -1,0 +1,10 @@
+{
+  "id": "route-preflight-ko",
+  "fixture": "basic",
+  "hosts": [
+    "claude",
+    "codex"
+  ],
+  "prompt": "푸시하기 전에 지금 변경분을 점검해줘. 파일은 수정하지 마.",
+  "expect_skill": "preflight"
+}

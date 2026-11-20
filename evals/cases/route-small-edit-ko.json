@@ -1,0 +1,10 @@
+{
+  "id": "route-small-edit-ko",
+  "fixture": "basic",
+  "hosts": [
+    "claude",
+    "codex"
+  ],
+  "prompt": "README.md에 오타가 있는 것 같아. 찾아서 알려줘, 수정은 하지 말고.",
+  "expect_skill": null
+}

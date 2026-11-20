@@ -1,0 +1,10 @@
+{
+  "id": "route-spec-ko",
+  "fixture": "basic",
+  "hosts": [
+    "claude",
+    "codex"
+  ],
+  "prompt": "docs/plans/notes-design.md 설계는 합의됐어. 이제 구현 스펙으로 정리해줘. 다른 파일은 수정하지 마.",
+  "expect_skill": "spec"
+}

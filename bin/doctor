@@ -156,7 +156,12 @@ def check_sources_table(report, project, lines):
         if len(columns) < 3:
             continue
         row, look_at = columns[:2]
-        for token in re.findall(r"`([^`]+)`", look_at):
+        tokens = re.findall(r"`([^`]+)`", look_at)
+        for target in re.findall(r"\[[^\]]*\]\(([^)]*)\)", look_at):
+            target = target.split("#", 1)[0]
+            if target and not target.lower().startswith(("http:", "https:", "mailto:")):
+                tokens.append(target)
+        for token in tokens:
             if any(char in token for char in "<>*"):
                 continue
             token = token.replace(r"\|", "|")

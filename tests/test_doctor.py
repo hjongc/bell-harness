@@ -64,7 +64,10 @@ class DoctorTests(unittest.TestCase):
         agents = project / "AGENTS.md"
         template = (fx.harness / "templates/AGENTS.md").read_text(encoding="utf-8")
         template = template.replace("<Entry points, tests, data or designs>",
-                                    "`<placeholder>`, `*.py`, `helper.py`, `docs/plans`")
+                                    "`<placeholder>`, `*.py`, [helper](helper.py#top), `docs/plans`, "
+                                    "[site](https://example.com), [web](http://example.com), "
+                                    "[email](mailto:ci@example.com), [heading](#top), [empty](), "
+                                    "[placeholder](<placeholder>), [glob](*.py)")
         agents.write_text(template, encoding="utf-8")
         (project / "CLAUDE.md").write_text("@AGENTS.md\n", encoding="utf-8")
         (project / "helper.py").write_text("", encoding="utf-8")
@@ -104,7 +107,8 @@ class DoctorTests(unittest.TestCase):
         warnings = "\n".join(self.lines(result, "WARN"))
         self.assertIn("commit messages: rejected by the harness hook: " + sha, warnings)
         self.assertIn("stale decision: docs/plans/first.md:2: first#D1 cites missing path helper.py", warnings)
-        self.assertIn('stale table: helper.py (row "<Kind of change>")', warnings)
+        stale_paths = [line for line in self.lines(result, "WARN") if line.startswith("WARN stale table:")]
+        self.assertEqual(stale_paths, ['WARN stale table: helper.py (row "<Kind of change>")'], result.stdout)
 
         agents.write_text(template.replace("<short commit>", "deadbee"), encoding="utf-8")
         self.assertIn("WARN table check: unknown commit deadbee",
