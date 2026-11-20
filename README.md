@@ -2,7 +2,7 @@
 
 ![check](https://github.com/hjongc/bell-harness/actions/workflows/check.yml/badge.svg)
 
-One working setup for [Claude Code](https://claude.com/claude-code) and [Codex](https://developers.openai.com/codex), shared across machines: global instructions both tools read, seven skills, git hooks that enforce commit rules and block staged secrets, and scripts that install, check and undo all of it.
+One working setup for [Claude Code](https://claude.com/claude-code) and [Codex](https://developers.openai.com/codex), shared across machines: global instructions both tools read, eight skills, git hooks that enforce commit rules and block staged secrets, and scripts that install, check and undo all of it.
 
 Both tools read the same instructions and skills. Project memory lives in git (specs with decision records), so a decision made in one tool is visible to the other.
 
@@ -57,6 +57,7 @@ Codex rules match command prefixes, and `bin/doctor --project` lists commits mad
 | `eval` | Compare a prompt, skill or model change on fixed cases |
 | `ui-design` | Choose style, palette, typography and layout from local design data, including Korean-market conventions |
 | `ui-polish` | Inspect the rendered UI (and PDFs) at three widths against a baseline before calling it done |
+| `away` | See what can run unattended and keep approved work moving while you are away |
 
 Origins and licenses are in [SOURCES.md](SOURCES.md).
 
@@ -72,6 +73,10 @@ A project's AGENTS.md has a Sources of truth table (task, where to look, constra
 
 `docs/plans/roadmap.md` lists specs in work order. The next unchecked item can start when its spec says `Status: approved`. Actions listed in the global approval rules still need approval.
 
+## Working while you are away
+
+Ask what is queued before you leave, then set a goal for the range you want the agent to work through. While you are away, the agent records questions and actions that need approval in `docs/plans/blocked.md` and continues with approved items that can proceed independently.
+
 ## Start a project
 
 Copy `templates/AGENTS.md` into the project and fill it in, or ask an agent to run the `init` skill. A project can allow a Korean commit summary with a `.harness.json` file (`{"commit": {"allow_hangul": true}}`); the hook reads it from the last commit, so a commit cannot relax its own rules.
@@ -82,7 +87,7 @@ Copy `templates/AGENTS.md` into the project and fill it in, or ask an agent to r
 python3 evals/run.py [--host claude|codex|all] [--case <id>]... [--jobs N] [--timeout S] [--json <file>]
 ```
 
-Each of the 16 cases sends a fixed prompt to the real `claude` and `codex` commands in a temporary copy of a fixture repository (`evals/fixtures/`), then grades which harness skill was loaded and regular expressions over the final answer. Ten routing cases use English and Korean prompts. They cover design, spec, eval, project initialization, preflight and small edits that should load no skill. Four memory cases check that a recorded decision is applied, an unrelated task stays quiet about it, a superseded decision loses to the newer one, and a missing reason is reported as missing. Two flow cases check roadmap order and the approval request before publishing. The runner calls paid models, so it is not part of `scripts/check`. Run it after installing the harness and whenever a model or an instruction changes.
+Each of the 18 cases sends a fixed prompt to the real `claude` and `codex` commands in a temporary copy of a fixture repository (`evals/fixtures/`), then grades which harness skill was loaded and regular expressions over the final answer. Ten routing cases use English and Korean prompts. They cover design, spec, eval, project initialization, preflight and small edits that should load no skill. Four memory cases check that a recorded decision is applied, an unrelated task stays quiet about it, a superseded decision loses to the newer one, and a missing reason is reported as missing. Two flow cases check roadmap order and the approval request before publishing. Two away cases check skill routing when you ask what is queued or ask the agent to continue a roadmap with an approval gate. The runner calls paid models, so it is not part of `scripts/check`. Run it after installing the harness and whenever a model or an instruction changes.
 
 ## Develop
 

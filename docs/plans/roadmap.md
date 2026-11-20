@@ -10,3 +10,4 @@ Specs in the order they run. An unchecked item starts without asking when its sp
 - [x] v1-evals: live evals for skill routing and project memory
 - [x] v1.1-flow-init: init skill, roadmap flow, one instruction file per project
 - [x] v1.2-field-fixes: fixes from the first real init run, Korean routing evals, CI
+- [x] v1.3-away: away skill and a ceiling on global rules

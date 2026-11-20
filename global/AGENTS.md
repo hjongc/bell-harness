@@ -44,7 +44,7 @@ Name the exact action and wait for approval before deleting or overwriting files
 - Report completion with the real output of the spec's done condition or `scripts/check`. When a check could not run, say so and why.
 - Fix the implementation, not the check. Change a test only when the test itself is wrong, and say so.
 - Updating the documents a change affects (the spec, README, the project's AGENTS.md, decision records) is part of done.
-- A visual claim needs evidence: inspect the rendered result and save screenshots or exports under `docs/plans/evidence/<slug>/`. Use browser automation for repeatable web checks and computer use for native apps or a final visual review in a local session.
+- A visual claim needs evidence: follow the `ui-polish` skill and save screenshots or exports under `docs/plans/evidence/<slug>/`.
 - Work still running in the background, including delegated tasks, means the task is not done. Collect the results, stop what you started and remove temporary files.
 - After three failed fixes of the same problem, treat it as a design question: report what you tried and your best hypothesis instead of a fourth patch.
 - Before pushing a diff larger than a single obvious fix, run `preflight`. Merge decisions happen on a laptop-sized screen; from a phone or a remote session, start, steer and check status only.

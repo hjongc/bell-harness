@@ -139,7 +139,7 @@ class EvalsTest(unittest.TestCase):
 
     def test_case_files_are_consistent(self):
         files = sorted((ROOT / "evals/cases").glob("*.json"))
-        self.assertEqual(len(files), 16)
+        self.assertEqual(len(files), 18)
         for path in files:
             case = json.loads(path.read_text(encoding="utf-8"))
             self.assertEqual(case["id"], path.stem)

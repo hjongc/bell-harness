@@ -37,7 +37,7 @@ Checked at 3572356
 
 ## Skills
 
-`init` to fill or refresh the project instructions, `probe` before a new design, `spec` to write the spec, `preflight` before pushing, `eval` after changing a skill or instruction. When a change alters behavior that README.md, SOURCES.md or a skill describes, update that file in the same change.
+Use `away` to brief the user before they leave and continue approved roadmap work in their absence. `init` to fill or refresh the project instructions, `probe` before a new design, `spec` to write the spec, `preflight` before pushing, `eval` after changing a skill or instruction. When a change alters behavior that README.md, SOURCES.md or a skill describes, update that file in the same change.
 
 ## Permission boundaries
 

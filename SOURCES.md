@@ -11,5 +11,6 @@ Where each skill comes from and what changed. Third-party license texts are in `
 | `skills/eval` | The author's earlier `agent-evaluation` skill, which links to [ECC](https://github.com/affaan-m/ECC) workflows as references | Own work | Renamed; points to `evals/run.py` and adds skill-routing checks. |
 | `skills/ui-polish` | The author's earlier Codex skill `frontend-polish-review` | Own work | Tool-neutral browser options; a verdict needs a baseline (`withheld: no baseline` otherwise); PDF and print checks; evidence paths; configurable widths in `scripts/ui-check.mjs`. |
 | `skills/ui-design` | [ui-ux-pro-max](https://github.com/nextlevelbuilder/ui-ux-pro-max-skill) | MIT (`licenses/ui-ux-pro-max.txt`) | Renamed; scripts run as `python3 <skill-dir>/scripts/...`; `--design-system` optional; reads and records project design decisions in `docs/design-system.md`; adds `references/korean.md`. Data and scripts are unchanged and `scripts/tests/` is left out. |
+| `skills/away` | Own work | Own work | Adds an unattended roadmap briefing, approval handling and a return report. |
 
 The writing principles for the always-loaded instruction files follow the prompting guides published by Anthropic and OpenAI for their current models.

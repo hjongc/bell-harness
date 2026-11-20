@@ -6,8 +6,8 @@ from harness_env import ROOT
 class InstructionTests(unittest.TestCase):
     def test_instruction_lengths_and_wording(self):
         for path, limit in (
-            ("global/AGENTS.md", 100),
-            ("global/CLAUDE.md", 60),
+            ("global/AGENTS.md", 70),
+            ("global/CLAUDE.md", 30),
             ("templates/AGENTS.md", 60),
             ("AGENTS.md", 60),
         ):

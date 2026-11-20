@@ -1,0 +1,11 @@
+{
+  "id": "route-away-ko",
+  "fixture": "flow-next",
+  "hosts": [
+    "claude",
+    "codex"
+  ],
+  "prompt": "나 자러 갈 건데 그동안 뭐 할 수 있어? 파일은 수정하지 마.",
+  "expect_skill": "away",
+  "expect_answer": "(?i)add-changelog|changelog|변경 ?이력"
+}

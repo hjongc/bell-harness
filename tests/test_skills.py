@@ -5,7 +5,7 @@ from harness_env import ROOT
 
 
 SKILLS = ROOT / "skills"
-EXPECTED = {"eval", "init", "preflight", "probe", "spec", "ui-design", "ui-polish"}
+EXPECTED = {"away", "eval", "init", "preflight", "probe", "spec", "ui-design", "ui-polish"}
 EMPHASIS = re.compile(r"\b(MUST|NEVER|ALWAYS|CRITICAL|IMPORTANT)\b")
 LOCAL_REF = re.compile(r"(?<![\w/<-])((?:references|scripts)/[\w.-]+\.(?:md|py|mjs))")
 
