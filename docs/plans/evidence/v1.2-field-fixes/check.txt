@@ -67,3 +67,7 @@ Ran 63 tests in 67.842s
 
 OK
 GUARD: real home unchanged
+
+## After review (Claude)
+- GitHub Actions: check passed on ubuntu-latest and macos-latest for both pushed commits.
+- Live evals (python3 evals/run.py --jobs 4): EVALS: 32/32 passed, including the five Korean routing cases on both hosts.
