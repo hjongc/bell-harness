@@ -188,6 +188,7 @@ def check_sources_table(report, project, lines):
         report.line("WARN", "table check", "could not compare HEAD with " + sha)
         return
     fields = output.split("\0")
+    tops = {Path(path.parts[0]) for path in paths if path.parts}  # a row inside a folder covers it
     removed, added = [], []
     for status, name in zip(fields[0::2], fields[1::2]):
         path = Path(name)
@@ -196,7 +197,7 @@ def check_sources_table(report, project, lines):
             removed.append(name)
         elif status.startswith("A") and len(path.parts) > 1 and not covered:
             top = Path(path.parts[0])
-            if top not in paths and not top.name.startswith(".") and str(top) not in added:
+            if top not in tops and not top.name.startswith(".") and str(top) not in added:
                 added.append(str(top))
     if removed or added:
         problems = ["removed under a row: " + ", ".join(removed[:5])] if removed else []
