@@ -1,6 +1,6 @@
 # v1-hooks-config: git hooks, host config and global instructions
 
-Status: approved, step 2 of 4 of the bell-harness v1 plan
+Status: implemented (152a0f1), step 2 of 4 of the bell-harness v1 plan
 
 ## Context
 Step 2 adds the mechanical enforcement and the instruction files that `bin/setup` (step 3) will install: git hooks for commit messages and staged secrets, a Claude settings fragment, Codex execution rules, the list of retired legacy items, the two global instruction files, and the project template. Everything stays inside the repository and is tested offline. Success: `scripts/check` passes with the new tests and the step lands as one commit.

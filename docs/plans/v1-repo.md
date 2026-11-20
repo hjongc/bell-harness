@@ -1,6 +1,6 @@
 # v1-repo: public repository skeleton
 
-Status: approved, step 1 of 4 of the bell-harness v1 plan
+Status: implemented (1cce749), step 1 of 4 of the bell-harness v1 plan
 
 ## Context
 bell-harness becomes a public, MIT-licensed repository that installs one harness for Claude Code and Codex on every machine of its owner. This step clears non-public material out of the working tree, adds the license and the repository instructions, adds offline checks that protect privacy and the real home directory, and records the first commit. Success: `scripts/check` passes and the first commit contains exactly the files listed in Acceptance 4.

@@ -1,6 +1,6 @@
 # v1-memory: decision records and recall rules
 
-Status: approved, inserted before step 3 of the bell-harness v1 plan
+Status: implemented (0aa6ec2), inserted before step 3 of the bell-harness v1 plan
 
 ## Context
 Claude Code and Codex should recall a project's decisions and their reasons when a task touches them, stay quiet when it does not, and follow the newer decision when one is replaced. Their built-in memories are not shared with each other, so the shared medium is documents in git. This step adds no hook and no index: the always-loaded project `AGENTS.md` points to where to look, decisions sit in specs in a fixed format that grep finds, and the global instructions tell both tools to look before changing behavior. Success: `scripts/check` passes with the new decision checks.
