@@ -1,0 +1,10 @@
+test_allow_rule_matches_path_and_kind (test_privacy.PrivacyTests.test_allow_rule_matches_path_and_kind) ... ok
+test_detects_kinds_without_printing_matches (test_privacy.PrivacyTests.test_detects_kinds_without_printing_matches) ... ok
+test_repository_is_clean (test_privacy.PrivacyTests.test_repository_is_clean) ... ok
+test_python_sources_parse_with_python39_grammar (test_python39.Python39Tests.test_python_sources_parse_with_python39_grammar) ... ok
+
+----------------------------------------------------------------------
+Ran 4 tests in 0.202s
+
+OK
+GUARD: real home unchanged

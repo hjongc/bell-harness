@@ -1,0 +1,66 @@
+#!/usr/bin/env python3
+import hashlib
+import os
+import stat
+import subprocess
+import sys
+import unittest
+from pathlib import Path
+
+
+def directory_snapshot(path):
+    try:
+        entries = sorted(path.iterdir())
+    except FileNotFoundError:
+        return None
+    except NotADirectoryError:
+        return "not a directory"
+
+    snapshot = []
+    for entry in entries:
+        kind = stat.S_IFMT(entry.lstat().st_mode)
+        target = os.readlink(entry) if stat.S_ISLNK(kind) else None
+        snapshot.append((entry.name, kind, target))
+    return snapshot
+
+
+def file_hash(path):
+    try:
+        return hashlib.sha256(path.read_bytes()).hexdigest()
+    except (FileNotFoundError, NotADirectoryError):
+        return "missing"
+
+
+def snapshot_home(home):
+    snapshot = {}
+    for name in (".claude/skills", ".agents/skills", ".codex/skills", ".codex/rules", ".claude/commands"):
+        snapshot[name] = directory_snapshot(home / name)
+    for name in (".claude/settings.json", ".claude/CLAUDE.md", ".codex/AGENTS.md"):
+        snapshot[name] = file_hash(home / name)
+    command = ["git", "config", "--global", "--get", "core.hooksPath"]
+    result = subprocess.run(command, stdout=subprocess.PIPE)
+    if result.returncode not in (0, 1):
+        result.check_returncode()
+    snapshot[" ".join(command)] = result.stdout
+    return snapshot
+
+
+def main():
+    home = Path(os.path.expanduser("~"))
+    before = snapshot_home(home)
+    sys.dont_write_bytecode = True
+    tests = str(Path(__file__).resolve().parents[1] / "tests")
+    suite = unittest.defaultTestLoader.discover(tests, top_level_dir=tests)
+    result = unittest.TextTestRunner(verbosity=2).run(suite)
+
+    after = snapshot_home(home)
+    changed = [name for name in before if before[name] != after[name]]
+    for name in changed:
+        print(f"GUARD: changed {name}")
+    if not changed:
+        print("GUARD: real home unchanged")
+    return 0 if result.wasSuccessful() and not changed else 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
