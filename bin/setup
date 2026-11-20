@@ -1,0 +1,397 @@
+#!/usr/bin/env python3
+"""Install bell-harness into the home directory with a recorded backup, or undo an install.
+
+Usage: bin/setup [--dry-run]
+       bin/setup --restore <id>|all [--dry-run]
+"""
+import argparse
+import datetime
+import json
+import os
+import shutil
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+
+sys.dont_write_bytecode = True
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "lib"))
+import harness as h  # noqa: E402
+
+
+HOOKS = ROOT / "git/hooks"
+
+
+class Abort(Exception):
+    pass
+
+
+def say(text):
+    print(h.tilde(text, HOME))
+
+
+# ---------- preflight ----------
+
+def preflight():
+    errors, notes = [], []
+    if not h.which("git"):
+        errors.append("git not found on PATH")
+    if not h.which("python3"):
+        errors.append("python3 not found on PATH")
+    for tool in ("claude", "codex"):
+        if not h.which(tool):
+            notes.append("{} not found on PATH; its parts are skipped".format(tool))
+    if errors:
+        return errors, notes
+    for key in ("user.name", "user.email"):
+        if not h.git_global(key):
+            errors.append("global git {} is not set".format(key))
+    settings = HOME / h.SETTINGS
+    if settings.exists():
+        try:
+            data = json.loads(settings.read_text(encoding="utf-8"))
+            if not isinstance(data, dict):
+                errors.append("{} is not a JSON object".format(settings))
+        except ValueError as error:
+            errors.append("{} is not valid JSON ({})".format(settings, error))
+    hooks = h.git_global(h.HOOKS_KEY)
+    if hooks and Path(hooks) != HOOKS:
+        errors.append("global core.hooksPath is {}, not {}".format(hooks, HOOKS))
+    return errors, notes
+
+
+# ---------- plan ----------
+
+def rel(path):
+    return Path(path).relative_to(HOME).as_posix()
+
+
+def plan():
+    actions = []
+    retire_paths, retire_plugins = h.retire_config(ROOT, HOME)
+    for item in retire_paths:
+        path = HOME / item
+        if h.exists(path) and not h.is_managed(path, ROOT):
+            actions.append({"action": "retire", "path": item})
+
+    settings = h.load_json(HOME / h.SETTINGS, {}) or {}
+    enabled = h.enabled_plugins(settings)
+    for plugin in retire_plugins:
+        if plugin in enabled:
+            if h.which("claude"):
+                actions.append({"action": "uninstall-plugin", "path": plugin})
+            else:
+                say("setup: cannot uninstall {} (claude not found)".format(plugin))
+
+    for link, target in h.desired_links(ROOT, HOME):
+        if h.link_target(link) != target:
+            actions.append({"action": "link", "path": rel(link), "target": str(target)})
+    for entry in h.stale_links(ROOT, HOME):
+        actions.append({"action": "unlink", "path": rel(entry), "target": str(h.link_target(entry))})
+
+    if not h.claude_md_ok(ROOT, HOME):
+        actions.append({"action": "write", "path": h.CLAUDE_MD})
+    if h.git_global(h.HOOKS_KEY) != str(HOOKS):
+        actions.append({"action": "git-config", "path": h.HOOKS_KEY, "value": str(HOOKS)})
+
+    changes = h.settings_changes(settings, h.settings_fragment(ROOT))
+    if changes:
+        actions.append({"action": "settings", "path": h.SETTINGS, "changes": changes})
+    return actions
+
+
+def describe(action):
+    kind, item = action["action"], action["path"]
+    if kind == "retire":
+        return ["retire ~/{} (moved into the backup)".format(item)]
+    if kind == "uninstall-plugin":
+        return ["claude plugin uninstall {}".format(item)]
+    if kind == "link":
+        note = " (replaces the existing entry)" if h.exists(HOME / item) else ""
+        return ["link ~/{} -> {}{}".format(item, action["target"], note)]
+    if kind == "unlink":
+        return ["unlink ~/{} (skill removed from the harness)".format(item)]
+    if kind == "write":
+        return ["write ~/{} importing {}".format(item, h.claude_md_line(ROOT)[1:])]
+    if kind == "git-config":
+        return ["git config --global {} {}".format(item, action["value"])]
+    lines = []
+    for op, key, value in action["changes"]:
+        lines.append("settings ~/{} {} {} {}".format(
+            item, op, ".".join(key), json.dumps(value, ensure_ascii=False)))
+    return lines
+
+
+# ---------- apply ----------
+
+def new_backup():
+    folder = HOME / ".bell-harness/backups"
+    stamp = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    name, count = stamp, 1
+    while h.exists(folder / name) or h.exists(folder / (name + ".restored")):
+        name = "{}-{}".format(stamp, count)
+        count += 1
+    path = folder / name
+    path.mkdir(parents=True)
+    return path
+
+
+def stash(item, backup):
+    """Move ~/item into the backup; return True when something was moved."""
+    source = HOME / item
+    if not h.exists(source):
+        return False
+    destination = backup / "home" / item
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    shutil.move(str(source), str(destination))
+    return True
+
+
+def unstash(item, backup):
+    source = backup / "home" / item
+    destination = HOME / item
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    shutil.move(str(source), str(destination))
+
+
+def record(backup, entry):
+    with (backup / "manifest.jsonl").open("a", encoding="utf-8") as stream:
+        stream.write(json.dumps(entry, ensure_ascii=False) + "\n")
+        stream.flush()
+        os.fsync(stream.fileno())
+
+
+def write_settings(data, expected_hash):
+    """Write settings atomically through a symlink; abort when the file changed meanwhile."""
+    target = Path(os.path.realpath(str(HOME / h.SETTINGS)))
+    target.parent.mkdir(parents=True, exist_ok=True)
+    text = json.dumps(data, indent=2, ensure_ascii=False) + "\n"
+    handle, temporary = tempfile.mkstemp(dir=str(target.parent), prefix=".settings.", suffix=".tmp")
+    try:
+        with os.fdopen(handle, "w", encoding="utf-8") as stream:
+            stream.write(text)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.chmod(temporary, 0o600)
+        if h.sha256(target) != expected_hash:
+            raise Abort("{} changed while setup ran; run setup again".format(HOME / h.SETTINGS))
+        os.replace(temporary, str(target))
+    finally:
+        if os.path.exists(temporary):
+            os.unlink(temporary)
+
+
+def read_settings():
+    target = Path(os.path.realpath(str(HOME / h.SETTINGS)))
+    before = h.sha256(target)
+    data = json.loads(target.read_text(encoding="utf-8")) if before else {}
+    return data, before
+
+
+def apply_settings():
+    data, before = read_settings()
+    entries = []
+    for op, key, value in h.settings_changes(data, h.settings_fragment(ROOT)):
+        if op == "set":
+            had, previous = h.get_key(data, key)
+            entry = {"op": "set", "key": list(key), "value": value}
+            entry.update({"previous": previous} if had else {"absent": True})
+            h.set_key(data, key, value)
+        else:
+            h.get_key(data, key)[1].append(value)
+            entry = {"op": "add", "key": list(key), "item": value}
+        entries.append(entry)
+    if entries:
+        write_settings(data, before)
+    return entries
+
+
+def apply(action, backup):
+    kind, item = action["action"], action["path"]
+    entry = {"action": kind, "path": item}
+    if kind == "retire":
+        stash(item, backup)
+        entry["previous"] = "backup"
+    elif kind == "uninstall-plugin":
+        result = subprocess.run(["claude", "plugin", "uninstall", item],
+                                stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                                universal_newlines=True)
+        if result.returncode != 0:
+            raise Abort("claude plugin uninstall {} failed: {}".format(item, result.stdout.strip()))
+        entry["previous"] = "enabled"
+    elif kind == "link":
+        entry["previous"] = "backup" if stash(item, backup) else "absent"
+        link = HOME / item
+        link.parent.mkdir(parents=True, exist_ok=True)
+        os.symlink(action["target"], str(link))
+        entry["target"] = action["target"]
+    elif kind == "unlink":
+        stash(item, backup)
+        entry.update({"previous": "backup", "target": action["target"]})
+    elif kind == "write":
+        entry["previous"] = "backup" if stash(item, backup) else "absent"
+        path = HOME / item
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(h.claude_md_line(ROOT) + "\n", encoding="utf-8")
+        entry["hash"] = h.sha256(path)
+    elif kind == "git-config":
+        previous = h.git_global(item)
+        subprocess.run(["git", "config", "--global", item, action["value"]], check=True)
+        entry.update({"previous": previous or "absent", "value": action["value"]})
+    elif kind == "settings":
+        entries = apply_settings()
+        if not entries:
+            return
+        entry["previous"] = entries
+    record(backup, entry)
+
+
+def run_doctor():
+    sys.stdout.flush()
+    return subprocess.call([sys.executable, str(ROOT / "bin/doctor")])
+
+
+def install(dry_run):
+    errors, notes = preflight()
+    for note in notes:
+        say("setup: note: " + note)
+    if errors:
+        for error in errors:
+            say("setup: " + error)
+        return 2
+    actions = plan()
+    for action in actions:
+        for line in describe(action):
+            say(("would " if dry_run else "") + line)
+    if not actions:
+        say("setup: nothing to do")
+        return 0 if dry_run else run_doctor()
+    if dry_run:
+        return 0
+    backup = new_backup()
+    try:
+        for action in actions:
+            apply(action, backup)
+    except (Abort, OSError, subprocess.CalledProcessError) as error:
+        say("setup: stopped: {}".format(error))
+        say("setup: finished actions are recorded; undo them with bin/setup --restore {}".format(backup.name))
+        return 1
+    say("setup: done ({} actions, backup {})".format(len(actions), backup.name))
+    return run_doctor()
+
+
+# ---------- restore ----------
+
+def skipped(item):
+    say("restore: skipped {} (changed since setup)".format(item))
+
+
+def undo_settings(entries, dry_run):
+    data, before = read_settings()
+    changed = False
+    for entry in entries:
+        key = tuple(entry["key"])
+        name = "~/{} {}".format(h.SETTINGS, ".".join(key))
+        has, current = h.get_key(data, key)
+        if entry["op"] == "set":
+            if not has or current != entry["value"]:
+                skipped(name)
+                continue
+            if entry.get("absent"):
+                h.delete_key(data, key)
+            else:
+                h.set_key(data, key, entry["previous"])
+        else:
+            if not (has and isinstance(current, list) and entry["item"] in current):
+                continue
+            current.remove(entry["item"])
+        say("restore: {}settings {}".format("would restore " if dry_run else "", name))
+        changed = True
+    if changed and not dry_run:
+        write_settings(data, before)
+
+
+def undo(entry, backup, dry_run):
+    kind, item = entry["action"], entry["path"]
+    path = HOME / item
+    saved = backup / "home" / item
+    prefix = "restore: would undo " if dry_run else "restore: undo "
+    if kind == "uninstall-plugin":
+        say("restore: reinstall with: claude plugin install {}".format(item))
+        return
+    if kind == "settings":
+        undo_settings(entry["previous"], dry_run)
+        return
+    if kind == "git-config":
+        if h.git_global(item) != entry["value"]:
+            return skipped("git config --global " + item)
+        say(prefix + "git config --global " + item)
+        if not dry_run:
+            if entry["previous"] == "absent":
+                subprocess.run(["git", "config", "--global", "--unset", item], check=True)
+            else:
+                subprocess.run(["git", "config", "--global", item, entry["previous"]], check=True)
+        return
+    if kind in ("link", "write"):
+        if kind == "link":
+            still = h.link_target(path) == Path(entry["target"])
+        else:
+            still = not path.is_symlink() and h.sha256(path) == entry["hash"]
+        if not still or (entry["previous"] == "backup" and not h.exists(saved)):
+            return skipped("~/" + item)
+        say(prefix + "{} ~/{}".format(kind, item))
+        if not dry_run:
+            os.unlink(str(path))
+            if entry["previous"] == "backup":
+                unstash(item, backup)
+        return
+    # retire and unlink: the original sits in the backup
+    if h.exists(path) or not h.exists(saved):
+        return skipped("~/" + item)
+    say(prefix + "{} ~/{}".format(kind, item))
+    if not dry_run:
+        unstash(item, backup)
+
+
+def restore(name, dry_run):
+    folder = HOME / ".bell-harness/backups"
+    if name == "all":
+        names = sorted((p.name for p in folder.iterdir()
+                        if p.is_dir() and not p.name.endswith(".restored")), reverse=True) \
+            if folder.is_dir() else []
+    else:
+        names = [name]
+    if not names:
+        say("restore: no backups to restore")
+        return 0
+    for backup_name in names:
+        backup = folder / backup_name
+        manifest = backup / "manifest.jsonl"
+        if not manifest.is_file():
+            say("restore: no backup {}".format(backup_name))
+            return 2
+        entries = [json.loads(line) for line in manifest.read_text(encoding="utf-8").splitlines()
+                   if line.strip()]
+        for entry in reversed(entries):
+            undo(entry, backup, dry_run)
+        if not dry_run:
+            backup.rename(folder / (backup_name + ".restored"))
+            say("restore: backup {} restored".format(backup_name))
+    return 0
+
+
+def main():
+    parser = argparse.ArgumentParser(prog="setup", description="Install or restore bell-harness.")
+    parser.add_argument("--dry-run", action="store_true", help="print the plan and change nothing")
+    parser.add_argument("--restore", metavar="ID|all", help="undo the actions of a backup")
+    args = parser.parse_args()
+    if args.restore:
+        return restore(args.restore, args.dry_run)
+    return install(args.dry_run)
+
+
+HOME = h.home_dir()
+
+if __name__ == "__main__":
+    raise SystemExit(main())

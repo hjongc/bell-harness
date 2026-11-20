@@ -1,0 +1,295 @@
+#!/usr/bin/env python3
+"""Report whether this machine (and optionally a project) matches bell-harness.
+
+Usage: bin/doctor [--project <path>] [--discovery]
+Prints one `PASS|WARN|FAIL <check>: <detail>` line per check; exits 1 when any line is FAIL.
+"""
+import argparse
+import json
+import os
+import subprocess
+import sys
+import tempfile
+import threading
+from pathlib import Path
+
+sys.dont_write_bytecode = True
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "lib"))
+import decisions  # noqa: E402
+import harness as h  # noqa: E402
+
+
+HOOKS = ROOT / "git/hooks"
+MCP_SERVERS = (
+    ("playwright", "codex mcp add playwright -- npx @playwright/mcp@latest"),
+    ("chrome-devtools", "codex mcp add chrome-devtools -- npx chrome-devtools-mcp@latest"),
+)
+DISCOVERY_TIMEOUT = 90
+
+
+class Report(object):
+    def __init__(self, home):
+        self.home = home
+        self.failed = False
+
+    def line(self, status, check, detail):
+        if status == "FAIL":
+            self.failed = True
+        print(h.tilde("{} {}: {}".format(status, check, detail), self.home))
+
+
+def run(command, cwd=None, timeout=60):
+    try:
+        result = subprocess.run(command, cwd=cwd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                                stdin=subprocess.DEVNULL, universal_newlines=True, timeout=timeout)
+    except (OSError, subprocess.TimeoutExpired) as error:
+        return 1, str(error)
+    return result.returncode, result.stdout
+
+
+# ---------- machine ----------
+
+def check_prerequisites(report):
+    for tool in ("git", "python3"):
+        report.line("PASS" if h.which(tool) else "FAIL", "prerequisite", tool)
+    for key in ("user.name", "user.email"):
+        if h.git_global(key):
+            report.line("PASS", "git identity", key)
+        else:
+            report.line("FAIL", "git identity", "{} is not set (git config --global {} ...)".format(key, key))
+    for tool in ("claude", "codex"):
+        if h.which(tool):
+            report.line("PASS", "host", tool)
+        else:
+            report.line("WARN", "host", "{} not found on PATH".format(tool))
+
+
+def check_install(report, home):
+    for link, target in h.desired_links(ROOT, home):
+        if h.link_target(link) == target:
+            report.line("PASS", "link", str(link))
+        else:
+            report.line("FAIL", "link", "{} does not point to {} (run {}/bin/setup)".format(link, target, ROOT))
+    for entry in h.stale_links(ROOT, home):
+        report.line("FAIL", "stale link", "{} points to a removed skill (run {}/bin/setup)".format(entry, ROOT))
+    claude_md = home / h.CLAUDE_MD
+    if h.claude_md_ok(ROOT, home):
+        report.line("PASS", "instructions", str(claude_md))
+    else:
+        report.line("FAIL", "instructions", "{} does not start with {}".format(claude_md, h.claude_md_line(ROOT)))
+    hooks = h.git_global(h.HOOKS_KEY)
+    if hooks == str(HOOKS):
+        report.line("PASS", "git hooks", "core.hooksPath is {}".format(HOOKS))
+    else:
+        report.line("FAIL", "git hooks", "global core.hooksPath is {!r}, expected {}".format(hooks, HOOKS))
+    try:
+        settings = h.load_json(home / h.SETTINGS, {}) or {}
+    except ValueError as error:
+        report.line("FAIL", "settings", "{} is not valid JSON ({})".format(home / h.SETTINGS, error))
+        return {}
+    missing = h.settings_changes(settings, h.settings_fragment(ROOT))
+    if missing:
+        keys = sorted({".".join(key) for _, key, _ in missing})
+        report.line("FAIL", "settings", "{} lacks {}".format(home / h.SETTINGS, ", ".join(keys)))
+    else:
+        report.line("PASS", "settings", "{} contains the harness fragment".format(home / h.SETTINGS))
+    return settings
+
+
+def check_leftovers(report, home, settings):
+    paths, plugins = h.retire_config(ROOT, home)
+    leftovers = [p for p in paths if h.exists(home / p) and not h.is_managed(home / p, ROOT)]
+    for item in leftovers:
+        report.line("WARN", "retired", "{} is still present (run {}/bin/setup)".format(home / item, ROOT))
+    enabled = [p for p in plugins if p in h.enabled_plugins(settings)]
+    for plugin in enabled:
+        report.line("WARN", "retired plugin", "{} is enabled (run {}/bin/setup)".format(plugin, ROOT))
+    if not leftovers and not enabled:
+        report.line("PASS", "retired", "no retired item present")
+    unmanaged = h.unmanaged_skills(ROOT, home)
+    if unmanaged:
+        report.line("WARN", "unmanaged skills", ", ".join(str(e) for e in unmanaged))
+    else:
+        report.line("PASS", "unmanaged skills", "none")
+    pinned = h.pinned_models(home)
+    for hit in pinned:
+        report.line("WARN", "pinned model", hit)
+    if not pinned:
+        report.line("PASS", "pinned model", "none")
+    code, output = run(["git", "-C", str(ROOT), "status", "--porcelain"])
+    if code == 0 and output.strip():
+        report.line("WARN", "harness repo", "{} has uncommitted changes".format(ROOT))
+    elif code == 0:
+        report.line("PASS", "harness repo", "clean")
+    if h.which("codex"):
+        code, output = run(["codex", "mcp", "list"])
+        names = {line.split()[0] for line in output.splitlines() if line.split()}
+        for name, command in MCP_SERVERS:
+            if code == 0 and name in names:
+                report.line("PASS", "codex mcp", name)
+            else:
+                report.line("WARN", "codex mcp", "{} missing; add it with: {}".format(name, command))
+
+
+# ---------- project ----------
+
+def template_headings():
+    text = (ROOT / "templates/AGENTS.md").read_text(encoding="utf-8")
+    return [line for line in text.splitlines() if line.startswith("## ")]
+
+
+def check_project(report, project):
+    agents = project / "AGENTS.md"
+    if agents.is_file():
+        lines = agents.read_text(encoding="utf-8").splitlines()
+        missing = [heading for heading in template_headings() if heading not in lines]
+        for heading in missing:
+            report.line("WARN", "project AGENTS.md", "missing heading {!r}".format(heading))
+        if not missing:
+            report.line("PASS", "project AGENTS.md", "has the template headings")
+    else:
+        report.line("WARN", "project AGENTS.md", "{} not found (start from {}/templates/AGENTS.md)".format(agents, ROOT))
+
+    claude = project / "CLAUDE.md"
+    if claude.is_file():
+        lines = [line for line in claude.read_text(encoding="utf-8").splitlines() if line.strip()]
+        if lines and lines[0].strip() == "@AGENTS.md":
+            report.line("PASS", "project CLAUDE.md", "imports AGENTS.md")
+        else:
+            report.line("WARN", "project CLAUDE.md", "first line is not @AGENTS.md")
+
+    config = project / ".harness.json"
+    if config.is_file():
+        try:
+            json.loads(config.read_text(encoding="utf-8"))
+            report.line("PASS", "project .harness.json", "parses")
+        except ValueError as error:
+            report.line("FAIL", "project .harness.json", "does not parse ({})".format(error))
+
+    code, output = run(["git", "-C", str(project), "config", "--local", "--get", h.HOOKS_KEY])
+    if code == 0 and output.strip():
+        report.line("WARN", "project hooks", "repo-local core.hooksPath {} bypasses the harness hooks".format(
+            output.strip()))
+
+    check_commits(report, project)
+
+    problems = decisions.check(project)
+    for problem in problems:
+        report.line("WARN", "stale decision", problem)
+    if not problems:
+        report.line("PASS", "decisions", "records valid")
+
+
+def check_commits(report, project):
+    code, _ = run(["git", "-C", str(project), "rev-parse", "--verify", "-q", "HEAD"])
+    if code != 0:
+        return
+    code, _ = run(["git", "-C", str(project), "rev-parse", "--abbrev-ref", "@{u}"])
+    if code == 0:
+        command = ["git", "-C", str(project), "rev-list", "@{u}..HEAD"]
+    else:
+        command = ["git", "-C", str(project), "rev-list", "-n", "20", "HEAD"]
+    code, output = run(command)
+    rejected = []
+    with tempfile.TemporaryDirectory() as folder:
+        message = Path(folder) / "COMMIT_EDITMSG"
+        for sha in output.split():
+            _, body = run(["git", "-C", str(project), "log", "-1", "--format=%B", sha])
+            message.write_text(body, encoding="utf-8")
+            status, _ = run([str(HOOKS / "commit-msg"), str(message)], cwd=str(project))
+            if status != 0:
+                rejected.append(sha[:7])
+    if rejected:
+        report.line("WARN", "commit messages", "rejected by the harness hook: {}".format(" ".join(rejected)))
+    else:
+        report.line("PASS", "commit messages", "recent commits follow the rules")
+
+
+# ---------- discovery ----------
+
+def claude_init_skills():
+    """Skill names from the first system/init event of a Claude session, or None."""
+    with tempfile.TemporaryDirectory() as folder:
+        process = subprocess.Popen(
+            ["claude", "-p", "Reply OK", "--output-format", "stream-json", "--verbose", "--max-turns", "1"],
+            cwd=folder, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+            universal_newlines=True)
+        timer = threading.Timer(DISCOVERY_TIMEOUT, process.kill)
+        timer.start()
+        try:
+            for line in process.stdout:
+                try:
+                    event = json.loads(line)
+                except ValueError:
+                    continue
+                if event.get("type") == "system" and event.get("subtype") == "init":
+                    skills = event.get("skills") or []
+                    return [s.get("name", "") if isinstance(s, dict) else str(s) for s in skills]
+            return None
+        finally:
+            timer.cancel()
+            if process.poll() is None:
+                process.terminate()
+                try:
+                    process.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    process.kill()
+                    process.wait()
+            process.stdout.close()
+
+
+def check_discovery(report, home):
+    harness = h.skill_names(ROOT)
+    paths, plugins = h.retire_config(ROOT, home)
+    retired = h.retired_names(paths)
+    prefixes = tuple(h.plugin_prefixes(plugins))
+
+    if h.which("claude"):
+        skills = claude_init_skills()
+        if skills is None:
+            report.line("FAIL", "claude discovery", "no init event from claude -p")
+        else:
+            problems = ["missing " + n for n in harness if n not in skills]
+            problems += ["retired " + n for n in skills if n in retired or n.startswith(prefixes)]
+            if problems:
+                report.line("FAIL", "claude discovery", ", ".join(problems))
+            else:
+                report.line("PASS", "claude discovery", "{} harness skills, no retired ones".format(len(harness)))
+    else:
+        report.line("WARN", "claude discovery", "claude not found on PATH")
+
+    if h.which("codex"):
+        code, output = run(["codex", "debug", "prompt-input", "probe"], timeout=DISCOVERY_TIMEOUT)
+        if code != 0:
+            report.line("FAIL", "codex discovery", "codex debug prompt-input failed")
+        else:
+            problems = ["missing " + n for n in harness if "/{}/SKILL.md".format(n) not in output]
+            problems += ["retired " + n for n in retired if "/{}/SKILL.md".format(n) in output]
+            if problems:
+                report.line("FAIL", "codex discovery", ", ".join(problems))
+            else:
+                report.line("PASS", "codex discovery", "{} harness skills, no retired ones".format(len(harness)))
+    else:
+        report.line("WARN", "codex discovery", "codex not found on PATH")
+
+
+def main():
+    parser = argparse.ArgumentParser(prog="doctor", description="Check this machine against bell-harness.")
+    parser.add_argument("--project", metavar="PATH", help="also check a project repository")
+    parser.add_argument("--discovery", action="store_true", help="ask claude and codex which skills they load")
+    args = parser.parse_args()
+    home = h.home_dir()
+    report = Report(home)
+    check_prerequisites(report)
+    settings = check_install(report, home)
+    check_leftovers(report, home, settings)
+    if args.project:
+        check_project(report, Path(args.project).resolve())
+    if args.discovery:
+        check_discovery(report, home)
+    return 1 if report.failed else 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

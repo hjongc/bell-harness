@@ -1,0 +1,299 @@
+import hashlib
+import json
+import os
+import shutil
+import subprocess
+import tempfile
+import unittest
+from pathlib import Path
+
+from harness_env import ROOT, make_env, write_stub
+
+
+RETIRE = json.loads((ROOT / "config/retire.json").read_text(encoding="utf-8"))
+FRAGMENT = json.loads((ROOT / "config/claude-settings.json").read_text(encoding="utf-8"))
+SKILLS = ("probe", "spec")
+
+CLAUDE_STUB = """#!/usr/bin/env python3
+import json, os, sys, time
+tmp = {tmp!r}
+with open(os.path.join(tmp, "claude-args.log"), "a") as log:
+    log.write(json.dumps(sys.argv[1:]) + "\\n")
+args = sys.argv[1:]
+if args[:1] == ["--version"]:
+    print("2.0.0 (Claude Code)")
+elif args[:2] == ["plugin", "uninstall"]:
+    path = os.path.join(os.environ["HOME"], ".claude/settings.json")
+    with open(path) as stream:
+        data = json.load(stream)
+    data.get("enabledPlugins", {{}}).pop(args[2], None)
+    with open(path, "w") as stream:
+        json.dump(data, stream, indent=2)
+    print("Uninstalled " + args[2])
+elif args[:1] == ["plugin"]:
+    print("[]")
+elif args[:1] == ["-p"]:
+    with open(os.path.join(tmp, "claude-skills.json")) as stream:
+        skills = json.load(stream)
+    print(json.dumps({{"type": "system", "subtype": "hook_started"}}), flush=True)
+    print(json.dumps({{"type": "system", "subtype": "init", "skills": skills}}), flush=True)
+    time.sleep(60)
+"""
+
+CODEX_STUB = """#!/usr/bin/env python3
+import os, sys
+tmp = {tmp!r}
+args = sys.argv[1:]
+if args[:2] == ["mcp", "list"]:
+    print("Name             Command  Args                    Status")
+    print("chrome-devtools  npx      chrome-devtools-mcp@latest  enabled")
+    print("playwright       npx      @playwright/mcp@latest  enabled")
+elif args[:2] == ["debug", "prompt-input"]:
+    with open(os.path.join(tmp, "codex-prompt.txt")) as stream:
+        print(stream.read())
+elif args[:1] == ["--version"]:
+    print("codex-cli 0.0.0")
+"""
+
+
+def copy_harness(destination):
+    """Copy the working tree (tracked and untracked, not ignored) into destination."""
+    listed = subprocess.run(
+        ["git", "ls-files", "-co", "--exclude-standard", "-z"], cwd=ROOT,
+        stdout=subprocess.PIPE, check=True).stdout.decode("utf-8").split("\0")
+    for name in filter(None, listed):
+        source = ROOT / name
+        if not os.path.lexists(str(source)):
+            continue
+        target = destination / name
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(str(source), str(target), follow_symlinks=False)
+
+
+def tree_snapshot(home):
+    """Files and links under the managed roots: (path, kind, link target or hash)."""
+    snapshot = {}
+    for root_name in (".claude", ".agents", ".codex"):
+        base = home / root_name
+        for folder, dirs, files in os.walk(str(base)):
+            for name in dirs + files:
+                path = Path(folder) / name
+                key = path.relative_to(home).as_posix()
+                if key == ".claude/settings.json":
+                    continue
+                if path.is_symlink():
+                    snapshot[key] = ("link", os.readlink(str(path)))
+                elif path.is_file():
+                    snapshot[key] = ("file", hashlib.sha256(path.read_bytes()).hexdigest())
+    return snapshot
+
+
+class Fixture(object):
+    def __init__(self, tmp):
+        self.tmp = Path(tmp)
+        self.env = make_env(self.tmp)
+        self.home = Path(self.env["HOME"])
+        self.harness = (self.tmp / "harness").resolve()
+        self.harness.mkdir()
+        copy_harness(self.harness)
+        for name in SKILLS:
+            skill = self.harness / "skills" / name
+            skill.mkdir(parents=True, exist_ok=True)
+            (skill / "SKILL.md").write_text("---\nname: {}\n---\n".format(name), encoding="utf-8")
+        self.git("init", "-q", "-b", "main", cwd=self.harness)
+        self.git("add", "-A", cwd=self.harness)
+        self.git("commit", "-q", "-m", "chore: copy harness", cwd=self.harness)
+        self.git("config", "--global", "user.name", "Test")
+        self.git("config", "--global", "user.email", "test@example.com")
+        write_stub(self.tmp, "claude", CLAUDE_STUB.format(tmp=str(self.tmp)))
+        write_stub(self.tmp, "codex", CODEX_STUB.format(tmp=str(self.tmp)))
+        self.set_discovery(list(SKILLS) + ["paseo-x"], SKILLS)
+        self.build_home()
+
+    def set_discovery(self, claude_skills, codex_skills):
+        (self.tmp / "claude-skills.json").write_text(json.dumps(claude_skills), encoding="utf-8")
+        lines = ["{}/skills/{}/SKILL.md".format(self.home / ".agents", n) for n in codex_skills]
+        (self.tmp / "codex-prompt.txt").write_text("\n".join(lines), encoding="utf-8")
+
+    def build_home(self):
+        home = self.home
+        for item in RETIRE["paths"]:
+            path = home / item
+            path.parent.mkdir(parents=True, exist_ok=True)
+            if item.endswith(".md"):
+                path.write_text("old command\n", encoding="utf-8")
+            else:
+                path.mkdir()
+                (path / "SKILL.md").write_text("old skill\n", encoding="utf-8")
+        old_spec = home / ".claude/skills/spec"
+        old_spec.mkdir(parents=True)
+        (old_spec / "SKILL.md").write_text("old spec\n", encoding="utf-8")
+        foreign = self.tmp / "elsewhere"
+        foreign.mkdir()
+        (home / ".agents/skills").mkdir(parents=True)
+        os.symlink(str(foreign), str(home / ".agents/skills/probe"))
+        (home / ".claude/skills/paseo-x").mkdir()
+        (home / ".claude/skills/paseo-x/SKILL.md").write_text("paseo\n", encoding="utf-8")
+        (home / ".agents/skills/synced").mkdir()
+        (home / ".agents/skills/synced/SKILL.md").write_text("synced\n", encoding="utf-8")
+        self.settings_before = {
+            "hooks": {"Stop": [{"hooks": [{"type": "command", "command": "true"}]}]},
+            "enabledPlugins": {"codex@openai-codex": True, "taste-skill@taste-skill": True},
+            "theme": "dark",
+            "permissions": {"deny": ["Bash(rm -rf:*)"]},
+        }
+        self.write_settings(self.settings_before)
+
+    def write_settings(self, data):
+        path = self.home / ".claude/settings.json"
+        path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+
+    def settings(self):
+        return json.loads((self.home / ".claude/settings.json").read_text(encoding="utf-8"))
+
+    def git(self, *args, cwd=None):
+        return subprocess.run(["git"] + list(args), cwd=str(cwd or self.tmp), env=self.env,
+                              stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                              universal_newlines=True, check=True).stdout
+
+    def run(self, script, *args):
+        return subprocess.run([str(self.harness / "bin" / script)] + list(args), cwd=str(self.tmp),
+                              env=self.env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                              universal_newlines=True)
+
+    def backups(self):
+        folder = self.home / ".bell-harness/backups"
+        return sorted(p.name for p in folder.iterdir()) if folder.is_dir() else []
+
+    def claude_calls(self):
+        log = self.tmp / "claude-args.log"
+        if not log.exists():
+            return []
+        return [json.loads(line) for line in log.read_text(encoding="utf-8").splitlines()]
+
+
+class SetupTests(unittest.TestCase):
+    def setUp(self):
+        self.tmpdir = tempfile.TemporaryDirectory()
+        self.fx = Fixture(self.tmpdir.name)
+
+    def tearDown(self):
+        self.tmpdir.cleanup()
+
+    def assert_installed(self):
+        fx, home, harness = self.fx, self.fx.home, self.fx.harness
+        for name in SKILLS:
+            for folder in (".claude/skills", ".agents/skills"):
+                self.assertEqual(os.readlink(str(home / folder / name)), str(harness / "skills" / name))
+        self.assertEqual(os.readlink(str(home / ".codex/AGENTS.md")), str(harness / "global/AGENTS.md"))
+        self.assertEqual(os.readlink(str(home / ".codex/rules/bell-harness.rules")),
+                         str(harness / "config/bell-harness.rules"))
+        claude_md = home / ".claude/CLAUDE.md"
+        self.assertFalse(claude_md.is_symlink())
+        self.assertEqual(claude_md.read_text(encoding="utf-8"), "@{}/global/CLAUDE.md\n".format(harness))
+        self.assertEqual(fx.git("config", "--global", "core.hooksPath").strip(), str(harness / "git/hooks"))
+
+    def test_install_then_noop(self):
+        fx = self.fx
+        result = fx.run("setup")
+        self.assertEqual(result.returncode, 0, result.stdout)
+        self.assertNotIn(str(fx.home), result.stdout)
+        self.assertNotIn(os.path.realpath(str(fx.home)), result.stdout)
+        self.assertIn("setup: done (", result.stdout)
+        after_done = result.stdout.split("setup: done (", 1)[1]
+        self.assertIn("PASS link:", after_done)
+        self.assert_installed()
+
+        backup = fx.home / ".bell-harness/backups" / fx.backups()[0] / "home"
+        for item in RETIRE["paths"]:
+            self.assertTrue(os.path.lexists(str(backup / item)), item)
+            self.assertFalse(os.path.lexists(str(fx.home / item)), item)
+        self.assertEqual((backup / ".claude/skills/spec/SKILL.md").read_text(encoding="utf-8"), "old spec\n")
+        self.assertTrue((backup / ".agents/skills/probe").is_symlink())
+
+        self.assertIn(["plugin", "uninstall", "taste-skill@taste-skill"], fx.claude_calls())
+        settings = fx.settings()
+        before = fx.settings_before
+        self.assertEqual(settings["hooks"], before["hooks"])
+        self.assertEqual(settings["enabledPlugins"], {"codex@openai-codex": True})
+        self.assertEqual(settings["theme"], "dark")
+        self.assertEqual(settings["permissions"]["deny"][0], "Bash(rm -rf:*)")
+        for rule in FRAGMENT["permissions"]["deny"]:
+            self.assertIn(rule, settings["permissions"]["deny"])
+        self.assertEqual(settings["attribution"], FRAGMENT["attribution"])
+        mode = (fx.home / ".claude/settings.json").stat().st_mode & 0o777
+        self.assertEqual(mode, 0o600)
+
+        self.assertEqual((fx.home / ".claude/skills/paseo-x/SKILL.md").read_text(encoding="utf-8"), "paseo\n")
+        self.assertEqual((fx.home / ".agents/skills/synced/SKILL.md").read_text(encoding="utf-8"), "synced\n")
+
+        again = fx.run("setup")
+        self.assertEqual(again.returncode, 0, again.stdout)
+        self.assertIn("setup: nothing to do", again.stdout)
+        self.assertEqual(len(fx.backups()), 1)
+
+    def test_dry_run_changes_nothing(self):
+        fx = self.fx
+        before = tree_snapshot(fx.home)
+        result = fx.run("setup", "--dry-run")
+        self.assertEqual(result.returncode, 0, result.stdout)
+        self.assertIn("would link ~/.claude/skills/spec", result.stdout)
+        self.assertEqual(tree_snapshot(fx.home), before)
+        self.assertEqual(fx.settings(), fx.settings_before)
+        self.assertEqual(fx.backups(), [])
+        self.assertEqual(fx.claude_calls(), [])
+
+    def test_removed_skill_loses_its_links(self):
+        fx = self.fx
+        self.assertEqual(fx.run("setup").returncode, 0)
+        shutil.rmtree(str(fx.harness / "skills/probe"))
+        result = fx.run("setup")
+        self.assertIn("unlink ~/.claude/skills/probe", result.stdout)
+        self.assertFalse(os.path.lexists(str(fx.home / ".claude/skills/probe")))
+        self.assertFalse(os.path.lexists(str(fx.home / ".agents/skills/probe")))
+        self.assertTrue((fx.home / ".claude/skills/spec").is_symlink())
+
+    def test_restore_returns_the_previous_state(self):
+        fx = self.fx
+        before = tree_snapshot(fx.home)
+        self.assertEqual(fx.run("setup").returncode, 0)
+        backup_id = fx.backups()[0]
+        settings = fx.settings()
+        settings["attribution"]["commit"] = "custom"
+        fx.write_settings(settings)
+
+        result = fx.run("setup", "--restore", backup_id)
+        self.assertEqual(result.returncode, 0, result.stdout)
+        self.assertIn("restore: skipped ~/.claude/settings.json attribution (changed since setup)", result.stdout)
+        self.assertIn("claude plugin install taste-skill@taste-skill", result.stdout)
+        self.assertEqual(tree_snapshot(fx.home), before)
+        hooks = subprocess.run(["git", "config", "--global", "--get", "core.hooksPath"], env=fx.env,
+                               stdout=subprocess.PIPE, universal_newlines=True)
+        self.assertEqual((hooks.returncode, hooks.stdout), (1, ""))
+        restored = fx.settings()
+        self.assertEqual(restored.pop("attribution")["commit"], "custom")
+        expected = dict(fx.settings_before, enabledPlugins={"codex@openai-codex": True})
+        self.assertEqual(restored, expected)
+        self.assertEqual(fx.backups(), [backup_id + ".restored"])
+
+    def test_preflight_failures_change_nothing(self):
+        fx = self.fx
+        before = tree_snapshot(fx.home)
+        (fx.home / ".claude/settings.json").write_text("{not json", encoding="utf-8")
+        result = fx.run("setup")
+        self.assertEqual(result.returncode, 2, result.stdout)
+        self.assertIn("setup: ", result.stdout)
+        self.assertEqual(tree_snapshot(fx.home), before)
+        self.assertFalse((fx.home / ".bell-harness").exists())
+
+        fx.write_settings(fx.settings_before)
+        fx.git("config", "--global", "core.hooksPath", str(fx.tmp / "other-hooks"))
+        result = fx.run("setup")
+        self.assertEqual(result.returncode, 2, result.stdout)
+        self.assertIn("core.hooksPath", result.stdout)
+        self.assertEqual(tree_snapshot(fx.home), before)
+        self.assertFalse((fx.home / ".bell-harness").exists())
+
+
+if __name__ == "__main__":
+    unittest.main()
