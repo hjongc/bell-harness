@@ -29,7 +29,7 @@ bin/setup             # apply it, with a backup, then run bin/doctor
 | Claude settings | `config/claude-settings.json` is merged key by key into `~/.claude/settings.json`: no attribution trailers, and hook-bypassing git commands are denied. Other keys stay as they are. |
 | Retired items | Paths in `config/retire.json` (and `~/.bell-harness/retire.local.json`) move into the backup; listed Claude plugins are uninstalled |
 
-Entries named `paseo*`, `synced` or `.system` are never touched. Running `bin/setup` again reports `setup: nothing to do`.
+Entries named `paseo*`, `synced` or `.system` are never touched, and setup refuses to run when `~/.claude/skills`, `~/.agents/skills` or `~/.codex/rules` is itself a symlink. Running `bin/setup` again reports `setup: nothing to do`.
 
 ## Check and undo
 

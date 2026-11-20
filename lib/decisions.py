@@ -115,6 +115,10 @@ def check(root):
     superseded = set()
     for decision in decisions:
         for ref in decision.supersedes:
+            if ref == decision.ref:
+                problems.append("{}:{}: {} supersedes itself".format(
+                    decision.source, decision.line, ref))
+                continue
             superseded.add(ref)
             if ref not in refs:
                 problems.append("{}:{}: supersedes unknown decision {}".format(

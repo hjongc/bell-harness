@@ -97,6 +97,12 @@ class CheckTests(unittest.TestCase):
         }
         self.assertEqual(self.check_fixture(documents), [])
 
+    def test_self_supersession_is_reported(self):
+        documents = {"a.md": "## Decisions\n" + VALID + " -- paths: gone.txt -- supersedes: a#D1\n"}
+        problems = self.check_fixture(documents)
+        self.assertIn("docs/plans/a.md:2: a#D1 supersedes itself", problems)
+        self.assertIn("docs/plans/a.md:2: a#D1 cites missing path gone.txt", problems)
+
     def test_repository_records_are_valid(self):
         self.assertEqual(check(ROOT), [])
 

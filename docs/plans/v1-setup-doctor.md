@@ -1,6 +1,6 @@
 # v1-setup-doctor: install, restore and check
 
-Status: approved, step 3 of 4 of the bell-harness v1 plan (implemented by Claude directly at the user's request)
+Status: implemented (53593fd), step 3 of 4 of the bell-harness v1 plan (implemented by Claude directly at the user's request)
 
 ## Context
 Step 3 adds the two commands that make the harness portable: `bin/setup` installs it into a home directory with a recorded backup and can undo itself, and `bin/doctor` reports whether a machine matches the harness. Both are tested against temporary home directories with stub `claude` and `codex` commands. Success: `scripts/check` passes with the new tests and the real home directory is untouched.
@@ -10,6 +10,7 @@ Step 3 adds the two commands that make the harness portable: `bin/setup` install
 - D2: Restore undoes settings key by key and deny entry by deny entry, and skips anything changed since setup -- why: Claude and the user edit settings after setup, and copying the old file back would erase those edits -- by: user -- paths: bin/setup
 - D3: Entries named `paseo*`, `synced` or `.system` are never moved, linked or reported -- why: other tools manage them -- by: user -- paths: lib/harness.py
 - D4: The test copy of the harness is the working tree committed into a fresh repository rather than a `git clone --local` -- why: a clone holds only committed files, so the new scripts would be missing before their own commit -- by: observed -- paths: tests/test_setup.py
+- D5: Setup refuses symlinked skill or rules folders, rolls back a half-done link or write, compares settings with JSON types, and restore validates the backup id and every manifest entry before undoing anything and resumes a partial undo; a settings file swapped for another target between read and write is caught only by the hash check -- why: found by a Codex review before publishing, and the swap needs a concurrent writer replacing the symlink itself, which nothing on this machine does -- by: observed -- paths: bin/setup lib/harness.py tests/test_setup.py
 
 ## Scope / Non-goals
 - In: the files under Changes by file and one commit.

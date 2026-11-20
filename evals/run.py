@@ -148,6 +148,10 @@ def run_one(host, case, timeout):
     elif result.returncode != 0 and not answer:
         failure = "exit {}".format(result.returncode)
         detail += " " + failure
+    elif result.returncode != 0:
+        # shortcut: a run that answered but exited nonzero (for example at the turn limit) is
+        # graded on its answer; make it a failure if such exits start hiding real crashes.
+        detail += " (exit {})".format(result.returncode)
     return host, case["id"], failure is None, detail, answer
 
 

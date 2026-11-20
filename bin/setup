@@ -8,6 +8,7 @@ import argparse
 import datetime
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -55,6 +56,9 @@ def preflight():
                 errors.append("{} is not a JSON object".format(settings))
         except ValueError as error:
             errors.append("{} is not valid JSON ({})".format(settings, error))
+    for folder in h.SKILL_DIRS + (".codex/rules",):
+        if (HOME / folder).is_symlink():
+            errors.append("{} is a symlink; setup only manages real folders".format(HOME / folder))
     hooks = h.git_global(h.HOOKS_KEY)
     if hooks and Path(hooks) != HOOKS:
         errors.append("global core.hooksPath is {}, not {}".format(hooks, HOOKS))
@@ -143,6 +147,8 @@ def stash(item, backup):
     if not h.exists(source):
         return False
     destination = backup / "home" / item
+    if h.exists(destination):
+        raise Abort("backup already holds {}".format(destination))
     destination.parent.mkdir(parents=True, exist_ok=True)
     shutil.move(str(source), str(destination))
     return True
@@ -223,8 +229,13 @@ def apply(action, backup):
     elif kind == "link":
         entry["previous"] = "backup" if stash(item, backup) else "absent"
         link = HOME / item
-        link.parent.mkdir(parents=True, exist_ok=True)
-        os.symlink(action["target"], str(link))
+        try:
+            link.parent.mkdir(parents=True, exist_ok=True)
+            os.symlink(action["target"], str(link))
+        except OSError:
+            if entry["previous"] == "backup":
+                unstash(item, backup)
+            raise
         entry["target"] = action["target"]
     elif kind == "unlink":
         stash(item, backup)
@@ -232,8 +243,15 @@ def apply(action, backup):
     elif kind == "write":
         entry["previous"] = "backup" if stash(item, backup) else "absent"
         path = HOME / item
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(h.claude_md_line(ROOT) + "\n", encoding="utf-8")
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(h.claude_md_line(ROOT) + "\n", encoding="utf-8")
+        except OSError:
+            if h.exists(path):
+                os.unlink(str(path))
+            if entry["previous"] == "backup":
+                unstash(item, backup)
+            raise
         entry["hash"] = h.sha256(path)
     elif kind == "git-config":
         previous = h.git_global(item)
@@ -295,7 +313,7 @@ def undo_settings(entries, dry_run):
         name = "~/{} {}".format(h.SETTINGS, ".".join(key))
         has, current = h.get_key(data, key)
         if entry["op"] == "set":
-            if not has or current != entry["value"]:
+            if not has or not h.same(current, entry["value"]):
                 skipped(name)
                 continue
             if entry.get("absent"):
@@ -303,13 +321,33 @@ def undo_settings(entries, dry_run):
             else:
                 h.set_key(data, key, entry["previous"])
         else:
-            if not (has and isinstance(current, list) and entry["item"] in current):
+            if not (has and isinstance(current, list) and h.contains(current, entry["item"])):
                 continue
-            current.remove(entry["item"])
+            current.pop([h.same(x, entry["item"]) for x in current].index(True))
         say("restore: {}settings {}".format("would restore " if dry_run else "", name))
         changed = True
     if changed and not dry_run:
         write_settings(data, before)
+
+
+KNOWN_ACTIONS = ("retire", "uninstall-plugin", "link", "unlink", "write", "git-config", "settings")
+
+
+def valid_entry(entry):
+    if not isinstance(entry, dict) or entry.get("action") not in KNOWN_ACTIONS:
+        return False
+    kind, item = entry["action"], entry.get("path")
+    if not isinstance(item, str):
+        return False
+    if kind in ("retire", "link", "unlink", "write"):
+        parts = Path(item).parts
+        return (bool(parts) and not Path(item).is_absolute() and ".." not in parts
+                and parts[0] in h.MANAGED_ROOTS and not any(h.never_touch(p) for p in parts[1:]))
+    if kind == "git-config":
+        return item == h.HOOKS_KEY
+    if kind == "settings":
+        return item == h.SETTINGS and isinstance(entry.get("previous"), list)
+    return True
 
 
 def undo(entry, backup, dry_run):
@@ -333,6 +371,13 @@ def undo(entry, backup, dry_run):
             else:
                 subprocess.run(["git", "config", "--global", item, entry["previous"]], check=True)
         return
+    if kind in ("link", "write") and not h.exists(path) and entry["previous"] == "backup" \
+            and h.exists(saved):
+        # An earlier restore removed the installed item but stopped before moving the original back.
+        say(prefix + "{} ~/{} (resumed)".format(kind, item))
+        if not dry_run:
+            unstash(item, backup)
+        return
     if kind in ("link", "write"):
         if kind == "link":
             still = h.link_target(path) == Path(entry["target"])
@@ -354,14 +399,25 @@ def undo(entry, backup, dry_run):
         unstash(item, backup)
 
 
+BACKUP_NAME = re.compile(r"^(\d{8}T\d{6}Z)(?:-(\d+))?$")
+
+
+def backup_order(name):
+    stamp, count = BACKUP_NAME.match(name).groups()
+    return stamp, int(count or 0)
+
+
 def restore(name, dry_run):
     folder = HOME / ".bell-harness/backups"
     if name == "all":
         names = sorted((p.name for p in folder.iterdir()
-                        if p.is_dir() and not p.name.endswith(".restored")), reverse=True) \
-            if folder.is_dir() else []
-    else:
+                        if p.is_dir() and BACKUP_NAME.match(p.name)),
+                       key=backup_order, reverse=True) if folder.is_dir() else []
+    elif BACKUP_NAME.match(name):
         names = [name]
+    else:
+        say("restore: {!r} is not a backup id (expected <UTC timestamp>[-n] or all)".format(name))
+        return 2
     if not names:
         say("restore: no backups to restore")
         return 0
@@ -371,8 +427,19 @@ def restore(name, dry_run):
         if not manifest.is_file():
             say("restore: no backup {}".format(backup_name))
             return 2
-        entries = [json.loads(line) for line in manifest.read_text(encoding="utf-8").splitlines()
-                   if line.strip()]
+        entries = []
+        for number, line in enumerate(manifest.read_text(encoding="utf-8").splitlines(), 1):
+            if not line.strip():
+                continue
+            try:
+                entry = json.loads(line)
+            except ValueError:
+                entry = None
+            if not valid_entry(entry):
+                say("restore: {}:{} is damaged; nothing was undone and the backup is kept".format(
+                    manifest, number))
+                return 2
+            entries.append(entry)
         for entry in reversed(entries):
             undo(entry, backup, dry_run)
         if not dry_run:

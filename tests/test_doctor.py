@@ -103,5 +103,17 @@ class DoctorTests(unittest.TestCase):
         self.assertIn("codex discovery: missing", fails)
 
 
+    def test_missing_git_is_reported_not_raised(self):
+        only = self.fx.tmp / "only-python"
+        only.mkdir()
+        os.symlink("/usr/bin/python3", str(only / "python3"))
+        env = dict(self.fx.env, PATH=str(only))
+        result = subprocess.run([str(self.fx.harness / "bin/doctor")], env=env, cwd=str(self.fx.tmp),
+                                stdout=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines=True)
+        self.assertEqual(result.returncode, 1, result.stdout)
+        self.assertIn("FAIL prerequisite: git", result.stdout)
+        self.assertNotIn("Traceback", result.stdout)
+
+
 if __name__ == "__main__":
     unittest.main()

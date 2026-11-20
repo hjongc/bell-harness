@@ -67,7 +67,8 @@ def skill_names(root):
     skills = Path(root) / "skills"
     if not skills.is_dir():
         return []
-    return sorted(p.name for p in skills.iterdir() if (p / "SKILL.md").is_file())
+    return sorted(p.name for p in skills.iterdir()
+                  if (p / "SKILL.md").is_file() and not never_touch(p.name))
 
 
 def claude_md_line(root):
@@ -123,9 +124,10 @@ def load_json(path, default=None):
 
 
 def safe_relative(rel):
+    """A retirable home-relative path: below a managed folder, never a protected entry."""
     parts = Path(rel).parts
     return (
-        bool(parts)
+        len(parts) >= 3
         and not Path(rel).is_absolute()
         and ".." not in parts
         and parts[0] in MANAGED_ROOTS
@@ -141,6 +143,8 @@ def retire_config(root, home):
     for source in (config, local):
         paths += [p for p in source.get("paths", []) if p not in paths and safe_relative(p)]
         plugins += [p for p in source.get("claude_plugins", []) if p not in plugins]
+    # Drop a path that lies inside another retired path; moving the parent covers it.
+    paths = [p for p in paths if not any(p != q and inside(p, q) for q in paths)]
     return paths, plugins
 
 
@@ -163,6 +167,15 @@ def enabled_plugins(settings):
     return [name for name, on in plugins.items() if on]
 
 
+def same(a, b):
+    """JSON equality that keeps types apart (0 is not false, 1 is not 1.0)."""
+    return json.dumps(a, sort_keys=True) == json.dumps(b, sort_keys=True)
+
+
+def contains(items, item):
+    return any(same(entry, item) for entry in items)
+
+
 def settings_changes(current, fragment, prefix=()):
     """Changes needed so current contains fragment.
 
@@ -177,8 +190,8 @@ def settings_changes(current, fragment, prefix=()):
         if isinstance(value, dict) and isinstance(existing, dict):
             changes += settings_changes(existing, value, path)
         elif isinstance(value, list) and isinstance(existing, list):
-            changes += [("add", path, item) for item in value if item not in existing]
-        elif not has or existing != value:
+            changes += [("add", path, item) for item in value if not contains(existing, item)]
+        elif not has or not same(existing, value):
             changes.append(("set", path, value))
     return changes
 
@@ -215,12 +228,15 @@ def sha256(path):
 
 
 def git_global(key):
-    result = subprocess.run(
-        ["git", "config", "--global", "--get", key],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.DEVNULL,
-        universal_newlines=True,
-    )
+    try:
+        result = subprocess.run(
+            ["git", "config", "--global", "--get", key],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            universal_newlines=True,
+        )
+    except OSError:
+        return ""
     return result.stdout.strip() if result.returncode == 0 else ""
 
 

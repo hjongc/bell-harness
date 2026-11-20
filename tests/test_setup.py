@@ -1,4 +1,6 @@
 import hashlib
+import importlib.machinery
+import importlib.util
 import json
 import os
 import shutil
@@ -295,6 +297,73 @@ class SetupTests(unittest.TestCase):
         self.assertIn("core.hooksPath", result.stdout)
         self.assertEqual(tree_snapshot(fx.home), before)
         self.assertFalse((fx.home / ".bell-harness").exists())
+
+
+    def test_restore_rejects_bad_ids_and_damaged_manifests(self):
+        fx = self.fx
+        self.assertEqual(fx.run("setup").returncode, 0)
+        result = fx.run("setup", "--restore", "../elsewhere")
+        self.assertEqual(result.returncode, 2, result.stdout)
+        installed = tree_snapshot(fx.home)
+        backup_id = fx.backups()[0]
+        manifest = fx.home / ".bell-harness/backups" / backup_id / "manifest.jsonl"
+        with manifest.open("a", encoding="utf-8") as stream:
+            stream.write('{"action": "retire", "path": "../../outside"}\n')
+        result = fx.run("setup", "--restore", backup_id)
+        self.assertEqual(result.returncode, 2, result.stdout)
+        self.assertIn("is damaged", result.stdout)
+        self.assertEqual(tree_snapshot(fx.home), installed)
+        self.assertEqual(fx.backups(), [backup_id])
+
+    def test_restore_resumes_after_a_partial_undo(self):
+        fx = self.fx
+        self.assertEqual(fx.run("setup").returncode, 0)
+        os.unlink(str(fx.home / ".claude/skills/spec"))
+        result = fx.run("setup", "--restore", fx.backups()[0])
+        self.assertEqual(result.returncode, 0, result.stdout)
+        self.assertIn("(resumed)", result.stdout)
+        self.assertEqual((fx.home / ".claude/skills/spec/SKILL.md").read_text(encoding="utf-8"), "old spec\n")
+
+    def test_settings_compare_json_types(self):
+        fx = self.fx
+        settings = dict(fx.settings_before, attribution={"commit": "", "pr": "", "sessionUrl": 0})
+        fx.write_settings(settings)
+        result = fx.run("setup", "--dry-run")
+        self.assertIn("set attribution.sessionUrl false", result.stdout)
+
+    def test_unsafe_layouts_are_refused_or_ignored(self):
+        fx = self.fx
+        local = fx.home / ".bell-harness/retire.local.json"
+        local.parent.mkdir(parents=True)
+        local.write_text(json.dumps({"paths": [".claude/skills", ".codex/skills/chronicle/SKILL.md"]}),
+                         encoding="utf-8")
+        demo = fx.harness / "skills/paseo-demo"
+        demo.mkdir()
+        (demo / "SKILL.md").write_text("---\nname: paseo-demo\n---\n", encoding="utf-8")
+        result = fx.run("setup")
+        self.assertEqual(result.returncode, 0, result.stdout)
+        self.assertNotIn("retire ~/.claude/skills (", result.stdout)
+        self.assertNotIn("paseo-demo", result.stdout)
+        self.assertEqual((fx.home / ".claude/skills/paseo-x/SKILL.md").read_text(encoding="utf-8"), "paseo\n")
+
+        other = Fixture(str(fx.tmp / "second"))
+        real = other.home / ".agents/skills"
+        moved = other.tmp / "shared-skills"
+        os.rename(str(real), str(moved))
+        os.symlink(str(moved), str(real))
+        result = other.run("setup")
+        self.assertEqual(result.returncode, 2, result.stdout)
+        self.assertIn("is a symlink", result.stdout)
+
+    def test_restore_all_orders_numbered_backups(self):
+        loader = importlib.machinery.SourceFileLoader("harness_setup", str(ROOT / "bin/setup"))
+        spec = importlib.util.spec_from_loader("harness_setup", loader)
+        module = importlib.util.module_from_spec(spec)
+        loader.exec_module(module)
+        names = ["20261120T010101Z", "20261120T010101Z-2", "20261120T010101Z-10", "20261121T000000Z"]
+        ordered = sorted(names, key=module.backup_order, reverse=True)
+        self.assertEqual(ordered, ["20261121T000000Z", "20261120T010101Z-10", "20261120T010101Z-2",
+                                   "20261120T010101Z"])
 
 
 if __name__ == "__main__":
