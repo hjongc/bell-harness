@@ -12,7 +12,11 @@
 
 ## Sources of truth
 
-- <Documents, data or designs to read before changing a given area, each with when it applies.>
+Where to look before a kind of change. Decisions live in `docs/plans/<slug>.md` under `## Decisions`; cite them as `<slug>#D<n>`.
+
+| Task | Look at | Constraints and why |
+|---|---|---|
+| <Kind of change> | <Entry points, tests, data or designs> | <Rule, with the decision id or document that explains it> |
 
 ## Commands
 

@@ -5,6 +5,11 @@ Status: approved, step 2 of 4 of the bell-harness v1 plan
 ## Context
 Step 2 adds the mechanical enforcement and the instruction files that `bin/setup` (step 3) will install: git hooks for commit messages and staged secrets, a Claude settings fragment, Codex execution rules, the list of retired legacy items, the two global instruction files, and the project template. Everything stays inside the repository and is tested offline. Success: `scripts/check` passes with the new tests and the step lands as one commit.
 
+## Decisions
+- D1: Commit subjects are `type(scope): imperative summary` in English, at most 72 characters; a project may allow a Korean summary through `.harness.json`; attribution trailers such as `Co-Authored-By` are rejected -- why: the user asked for one format across tools and for no attribution trailers -- by: user -- paths: git/hooks/commit-msg
+- D2: Always-loaded instruction files state goals, constraints and reasons, stay under fixed line limits, and avoid all-caps emphasis and absolute wording -- why: current Claude and GPT prompting guides report that models over-react to emphasis, and every line costs context in every session -- by: user -- paths: global/AGENTS.md global/CLAUDE.md templates/AGENTS.md tests/test_instructions.py
+- D3: Shared instruction files pin no model and no reasoning effort; each tool keeps its own default -- why: new models then apply without edits, and effort settings differ per model -- by: user -- paths: global/AGENTS.md
+
 ## Scope / Non-goals
 - In: the files under Changes by file and one commit.
 - Out: `bin/setup`, `bin/doctor` (step 3), skills, README and SOURCES (step 4). Nothing is installed into the real home directory and the global git config stays unchanged; tests use temporary repositories and a temporary `GIT_CONFIG_GLOBAL`.

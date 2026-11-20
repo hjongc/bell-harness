@@ -5,6 +5,12 @@ Status: approved, step 1 of 4 of the bell-harness v1 plan
 ## Context
 bell-harness becomes a public, MIT-licensed repository that installs one harness for Claude Code and Codex on every machine of its owner. This step clears non-public material out of the working tree, adds the license and the repository instructions, adds offline checks that protect privacy and the real home directory, and records the first commit. Success: `scripts/check` passes and the first commit contains exactly the files listed in Acceptance 4.
 
+## Decisions
+- D1: Hooks, tests and scripts run on Python 3.9 and bash 3.2 with the standard library only -- why: desktop apps run git hooks with the macOS system Python and a short PATH, so newer syntax or a dependency breaks commits -- by: user -- paths: git/hooks lib scripts/check tests/test_python39.py
+- D2: Tests run against a temporary home with stub `claude` and `codex` commands, and `scripts/check` fails when the real home changed -- why: applying the harness to a real machine is a separate step the user asks for, so a test must never do it by accident -- by: user -- paths: scripts/check tests/harness_env.py
+- D3: Tracked files and commit messages hold no personal data; `lib/privacy.py` checks them, including the terms in the untracked `.private-terms` file -- why: the repository is public -- by: user -- paths: lib/privacy.py lib/patterns.py
+- D4: The repository is MIT-licensed and publishes only the harness; earlier plans, pilots and vendored code move to an untracked archive instead of being deleted -- why: the user chose to publish the harness and to lose nothing from the old setup -- by: user -- paths: LICENSE .gitignore
+
 ## Scope / Non-goals
 - In: moving the paths listed below into `.archive/`, the new files below, `git init -b main`, one commit.
 - Out: git hooks, global instruction files, skills, `bin/setup`, `bin/doctor`, README and SOURCES (later steps). Nothing outside this directory changes: the real `~/.claude`, `~/.codex`, `~/.agents` and the global git config stay as they are.

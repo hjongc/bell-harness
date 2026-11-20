@@ -19,6 +19,15 @@ Installed by bell-harness. A project's own AGENTS.md adds project rules and take
 - Typical cycle: `probe` while the intent is unclear, `spec` to fix it in writing, implementation, `scripts/check`, then `preflight` before pushing.
 - Throwaway work (a scratch worktree, a repository named `*-scratch`, or the user saying "vibe this") skips the spec and `preflight`. Anything meant to ship follows the full cycle.
 
+## Decisions and recall
+
+Project memory shared by both tools lives in git, so record and look up decisions there rather than in a tool's own memory.
+
+- Record a decision whose reason the code does not show in the spec's `## Decisions` section: `- D<n>: <decision> -- why: <reason> -- by: user|observed [-- paths: <path> ...] [-- supersedes: <slug>#D<n>]`, where `<slug>` is the spec file name. Use `user` only for what the user decided or approved; something you observed once is `observed`, a hypothesis to confirm rather than a rule.
+- Before changing existing behavior, find the decisions that govern it: the row for the task in the project AGENTS.md Sources of truth table, then `grep -rn "<path or topic>" docs/plans`. Check that a decision is still in force with `grep -rn "<slug>#D<n>" docs/plans`; a later `supersedes` replaces it.
+- When no decision or document explains a constraint, say so instead of supplying a reason.
+- To change a decision, add a new line with `supersedes` and keep the old one, so the history of the reasoning stays readable.
+
 ## When to stop and ask
 
 Ask only in these situations, offering two or three options with their trade-offs and your recommendation:
