@@ -80,14 +80,20 @@ class DoctorTests(unittest.TestCase):
         project_warnings = [line for line in self.lines(result, "WARN")
                             if line.startswith(("WARN project", "WARN stale", "WARN commit", "WARN table"))]
         self.assertEqual(project_warnings, [], result.stdout)
-        self.assertIn("PASS table check: no table path changed since " + checked_at, result.stdout)
+        self.assertIn("PASS table check: table still matches the tree since " + checked_at, result.stdout)
 
         (project / "docs/plans/second.md").write_text("# Second\n", encoding="utf-8")
         fx.git("add", "docs/plans/second.md", cwd=project)
         fx.git("commit", "-q", "-m", "docs: add the second plan", cwd=project)
         result = self.doctor("--project", str(project))
-        self.assertIn("WARN table check: 1 changed path(s) under table rows since " + checked_at, result.stdout)
-        self.assertIn("rerun the init skill ('docs/plans/second.md')", result.stdout)
+        self.assertIn("PASS table check: table still matches the tree since " + checked_at, result.stdout)
+        (project / "newarea").mkdir()
+        (project / "newarea/tool.py").write_text("", encoding="utf-8")
+        fx.git("add", "newarea", cwd=project)
+        fx.git("commit", "-q", "-m", "feat: add a new area", cwd=project)
+        result = self.doctor("--project", str(project))
+        self.assertIn("WARN table check: since {}: new folder without a row: newarea; rerun the init skill".format(
+            checked_at), result.stdout)
 
         (project / "helper.py").unlink()
         fx.git("add", "-A", cwd=project)
@@ -129,11 +135,15 @@ class DoctorTests(unittest.TestCase):
         fx.git("add", "-A", cwd=project)
         fx.git("commit", "-q", "-m", "docs: refresh the agents table", cwd=project)
         result = self.doctor("--project", str(project))
-        self.assertIn("PASS table check: no table path changed since " + parent, result.stdout)
+        self.assertIn("PASS table check: table still matches the tree since " + parent, result.stdout)
         (project / "helper.py").write_text("a = 3\n", encoding="utf-8")
         fx.git("commit", "-q", "-am", "fix: change the helper", cwd=project)
         result = self.doctor("--project", str(project))
-        self.assertIn("WARN table check: 1 changed path(s)", result.stdout)
+        self.assertIn("PASS table check: table still matches the tree since " + parent, result.stdout)
+        fx.git("rm", "-q", "helper.py", cwd=project)
+        fx.git("commit", "-q", "-m", "refactor: remove the helper", cwd=project)
+        result = self.doctor("--project", str(project))
+        self.assertIn("WARN table check: since {}: removed under a row: helper.py".format(parent), result.stdout)
 
     def test_discovery(self):
         result = self.doctor("--discovery")

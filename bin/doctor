@@ -176,22 +176,29 @@ def check_sources_table(report, project, lines):
     # The commit that wrote this marker usually also updated table paths; count changes after it.
     code, marker = run(git + ["log", "-1", "--format=%H", "-S", "Checked at " + sha, "--", "AGENTS.md"])
     base = marker.strip() if code == 0 and marker.strip() else commit.strip()
-    code, output = run(git + ["diff", "--name-only", "-z", base + "..HEAD"])
+    # Ordinary edits under a row do not make the table stale; removed or renamed files under a row,
+    # and new top-level folders that no row covers, do.
+    code, output = run(git + ["diff", "--name-status", "--no-renames", "-z", base + "..HEAD"])
     if code != 0:
         report.line("WARN", "table check", "could not compare HEAD with " + sha)
         return
-    changed = []
-    for name in output.split("\0"):
-        if name:
-            path = Path(name)
-            if path in paths or any(parent in paths for parent in path.parents):
-                changed.append(name)
-    if changed:
-        report.line("WARN", "table check",
-                    "{} changed path(s) under table rows since {}; rerun the init skill ({})".format(
-                        len(changed), sha, ", ".join(repr(name) for name in changed[:5])))
+    fields = output.split("\0")
+    removed, added = [], []
+    for status, name in zip(fields[0::2], fields[1::2]):
+        path = Path(name)
+        covered = path in paths or any(parent in paths for parent in path.parents)
+        if status.startswith("D") and covered:
+            removed.append(name)
+        elif status.startswith("A") and len(path.parts) > 1 and not covered:
+            top = Path(path.parts[0])
+            if top not in paths and not top.name.startswith(".") and str(top) not in added:
+                added.append(str(top))
+    if removed or added:
+        problems = ["removed under a row: " + ", ".join(removed[:5])] if removed else []
+        problems += ["new folder without a row: " + ", ".join(added[:5])] if added else []
+        report.line("WARN", "table check", "since {}: {}; rerun the init skill".format(sha, "; ".join(problems)))
     else:
-        report.line("PASS", "table check", "no table path changed since " + sha)
+        report.line("PASS", "table check", "table still matches the tree since " + sha)
 
 
 def check_project(report, project):
