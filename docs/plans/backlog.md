@@ -10,5 +10,28 @@ Findings from audit passes over the harness. Each entry has evidence and a size.
 - Why it matters: the only way out is to unset `core.hooksPath` by hand, which no document mentions. A user who reorganizes folders or clones to a different path on a second machine after copying their home hits this.
 - Direction: treat a `core.hooksPath` or link whose recorded value appears in an earlier backup manifest as the harness's own and replace it; or document `git config --global --unset core.hooksPath` in the README until then.
 
+### B2: The harness skill `init` shares its name with Claude Code's built-in `/init` (medium)
+- Area: `skills/init`, `evals/cases/route-init.json`.
+- Evidence: Claude Code ships a built-in `/init` command that writes a CLAUDE.md. In a temporary repository, `claude -p "Load the skill named init with the Skill tool..."` returned the harness heading `# Init`, so the Skill tool resolves to the harness skill. What a user gets by typing `/init` could not be determined (`claude -p "/init"` printed nothing identifiable within two turns). Earlier, before the harness skill existed, `/init` ran the built-in.
+- Why it matters: the user may type `/init` expecting the harness behavior and get a generated CLAUDE.md, which the harness now treats as redundant (v1.1-flow-init#D6). The routing eval only checks that a skill named `init` was called, not which body loaded.
+- Direction: check interactively what `/init` runs; if the built-in wins, rename the skill (for example `map`) or state the difference in its description.
+
+### B3: Eval runs are not isolated from the real harness repository (medium)
+- Area: `evals/run.py:81` (`parse_codex`), `evals/run.py:100` (`command_for`).
+- Evidence: in the full live run of 2026-11-21, `codex route-eval` failed with `skills=[eval, spec, spec]`: Codex read the harness's own `skills/spec/SKILL.md` while investigating, and the grader counts any command containing `/<name>/SKILL.md` as a load. The fixture copy lives in a temporary directory, but the agent can read the whole disk.
+- Why it matters: results depend on what happens to be in the working harness repository, and a correct run can fail.
+- Direction: for Codex, count only reads under the skills directories it loads from (`.agents/skills/`), and treat reads of other paths as file reads.
+
+### B4: Every eval case gets the same eight-turn limit and one attempt (small)
+- Area: `evals/run.py:102` (`--max-turns 8`).
+- Evidence: `claude away-gate-ko` returned an empty answer once and passed on rerun; the case asks for multi-step work while writes are disabled. A single run cannot tell a flaky case from a broken one (three flakes seen in 62 live runs across two days).
+- Direction: an optional `max_turns` per case, and a `--repeat N` flag that reports pass counts.
+
+### B5: A plugin skill whose name ends in a harness skill name counts as that skill (small)
+- Area: `evals/run.py:68` (`name.split(":")[-1]`).
+- Evidence: by reading the code: `Skill(skill="other-plugin:spec")` is recorded as `spec`. No such plugin is installed on this machine, so it has not happened.
+- Direction: accept only the bare name, or the bare name with a known harness prefix.
+
 ## Covered areas
 - Pass 1: README against real behavior (install, check and undo, eval case count). Case count and commands match.
+- Pass 2: eval runner (`evals/run.py`) and the `init` name. Four findings, none fixed (each changes grading behavior and needs a decision).
