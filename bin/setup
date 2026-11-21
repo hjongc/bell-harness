@@ -279,20 +279,25 @@ def install(dry_run):
             say("setup: " + error)
         return 2
     actions = plan()
-    for action in actions:
-        for line in describe(action):
-            say(("would " if dry_run else "") + line)
     if not actions:
         say("setup: nothing to do")
         return 0 if dry_run else run_doctor()
     if dry_run:
+        for action in actions:
+            for line in describe(action):
+                say("would " + line)
         return 0
     backup = new_backup()
+    done = 0
     try:
         for action in actions:
+            lines = describe(action)  # describe before applying: it reads the state the action replaces
             apply(action, backup)
+            for line in lines:
+                say(line)
+            done += 1
     except (Abort, OSError, subprocess.CalledProcessError) as error:
-        say("setup: stopped: {}".format(error))
+        say("setup: stopped after {} of {} actions: {}".format(done, len(actions), error))
         say("setup: finished actions are recorded; undo them with bin/setup --restore {}".format(backup.name))
         return 1
     say("setup: done ({} actions, backup {})".format(len(actions), backup.name))

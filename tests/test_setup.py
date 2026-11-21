@@ -325,6 +325,17 @@ class SetupTests(unittest.TestCase):
         self.assertIn("restore: skipped ~/.claude/settings.json (not valid JSON", result.stdout)
         self.assertEqual((fx.home / ".claude/skills/spec/SKILL.md").read_text(encoding="utf-8"), "old spec\n")
 
+    def test_failed_action_stops_and_can_be_undone(self):
+        fx = self.fx
+        before = tree_snapshot(fx.home)
+        write_stub(fx.tmp, "claude", "#!/bin/sh\necho 'network error' >&2\nexit 1\n")
+        result = fx.run("setup")
+        self.assertEqual(result.returncode, 1, result.stdout)
+        self.assertIn("setup: stopped after ", result.stdout)
+        self.assertNotIn("link ~/.claude/skills/spec", result.stdout)  # not reached, so not printed
+        self.assertEqual(fx.run("setup", "--restore", fx.backups()[0]).returncode, 0)
+        self.assertEqual(tree_snapshot(fx.home), before)
+
     def test_restore_resumes_after_a_partial_undo(self):
         fx = self.fx
         self.assertEqual(fx.run("setup").returncode, 0)
