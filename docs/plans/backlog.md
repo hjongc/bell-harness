@@ -24,6 +24,7 @@ None. B1-B11 were decided in v1.5-audit-fixes.
 - `bin/setup` printed every planned action as if done before applying any, so after a mid-run failure the output did not show how far it got. It now prints each action after it succeeds and reports `stopped after N of M actions` (`tests/test_setup.py::test_failed_action_stops_and_can_be_undone`, which also covers the failure-then-restore path that had no test).
 - `lib/decisions.py` read only the first line of a decision record, so records hard-wrapped at 80 columns in a real project were reported as `missing field 'by'` (six false warnings from `bin/doctor --project`). Indented continuation lines are now part of the record (`tests/test_decisions.py::test_accepts_a_record_wrapped_onto_indented_lines`, v1.4-memory-recall#D2).
 - The wrapped-record fix above absorbed a nested list under a record and then reported a bad `by` value. Continuation now stops at a nested list item (`tests/test_decisions.py::test_nested_list_under_a_record_is_not_part_of_it`). Found in pass 13 by probing the pass 11 change.
+- After v1.5 narrowed the preflight rule, the `preflight` skill description still said to use it before any push larger than a single fix, so the skill would keep triggering on the old terms. The description now matches v1.5-audit-fixes#D4.
 
 ## Covered areas
 - Pass 1: README against real behavior (install, check and undo, eval case count). Case count and commands match.
@@ -41,3 +42,4 @@ None. B1-B11 were decided in v1.5-audit-fixes.
 - Pass 13: regression probes of the fixes made during this audit. One regression found and fixed.
 - Pass 14: regression probes of the other audit fixes (setup output order and the "replaces" note, the placeholder warning on filled files, pattern paths, a file passed as a project). No finding.
 - Pass 15: the real-home guard in `scripts/check`. One small finding recorded. Every listed area has now been covered; the audit ends here.
+- Pass 16 (after v1.5): moved-repository handling including restore after a move and a foreign hooks path, eval runner options, the legacy-decision warning across the local repositories, leftover references to the old skill name and to plan mode. One wording mismatch fixed. Watch item: the real-home guard now hashes `~/.codex/config.toml`; if a running Codex app rewrites that file during a check, the guard will report a change that no test made.
