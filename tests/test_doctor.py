@@ -81,7 +81,8 @@ class DoctorTests(unittest.TestCase):
         result = self.doctor("--project", str(project))
         self.assertEqual(self.lines(result, "FAIL"), [], result.stdout)
         project_warnings = [line for line in self.lines(result, "WARN")
-                            if line.startswith(("WARN project", "WARN stale", "WARN commit", "WARN table"))]
+                            if line.startswith(("WARN project", "WARN stale", "WARN commit", "WARN table"))
+                            and "placeholder" not in line]  # this fixture is the template itself
         self.assertEqual(project_warnings, [], result.stdout)
         self.assertIn("PASS table check: table still matches the tree since " + checked_at, result.stdout)
 
@@ -166,6 +167,19 @@ class DoctorTests(unittest.TestCase):
         self.assertEqual(result.returncode, 1, result.stdout)
         self.assertIn("FAIL project:", result.stdout)
         self.assertIn("is not a directory", result.stdout)
+
+    def test_unfilled_template_is_reported(self):
+        fx = self.fx
+        project = fx.tmp / "unfilled"
+        init_repo(project, fx.env)
+        fx.git("config", "--file", fx.env["GIT_CONFIG_GLOBAL"], "core.hooksPath", str(fx.harness / "git/hooks"))
+        (project / "AGENTS.md").write_text((fx.harness / "templates/AGENTS.md").read_text(encoding="utf-8"),
+                                           encoding="utf-8")
+        fx.git("add", "-A", cwd=project)
+        fx.git("commit", "-q", "-m", "docs: add the agents file", cwd=project)
+        result = self.doctor("--project", str(project))
+        self.assertIn("WARN project AGENTS.md:", result.stdout)
+        self.assertIn("template placeholder(s) not filled in", result.stdout)
 
     def test_discovery(self):
         result = self.doctor("--discovery")

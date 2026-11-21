@@ -224,6 +224,12 @@ def check_project(report, project):
             report.line("WARN", "project AGENTS.md", "missing heading {!r}".format(heading))
         if not missing:
             report.line("PASS", "project AGENTS.md", "has the template headings")
+        template = (ROOT / "templates/AGENTS.md").read_text(encoding="utf-8")
+        text = agents.read_text(encoding="utf-8")
+        unfilled = sorted({mark for mark in re.findall(r"<[A-Z][^<>\n]{3,}>", template) if mark in text})
+        if unfilled:
+            report.line("WARN", "project AGENTS.md", "{} template placeholder(s) not filled in, for example {}".format(
+                len(unfilled), unfilled[0]))
         check_sources_table(report, project, lines)
     else:
         report.line("WARN", "project AGENTS.md", "{} not found (start from {}/templates/AGENTS.md)".format(agents, ROOT))

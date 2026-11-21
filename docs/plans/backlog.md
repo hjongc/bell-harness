@@ -58,6 +58,7 @@ Findings from audit passes over the harness. Each entry has evidence and a size.
 - `bin/doctor --project <missing dir>` exited 0 with a misleading "AGENTS.md not found" warning; it now fails with "is not a directory" (`tests/test_doctor.py::test_missing_project_directory_fails`).
 - Skills named harness tools (`bin/doctor`, `templates/AGENTS.md`) without saying where they are; in another repository an agent could not find them. `init` and `preflight` now say the harness root is two folders above the skill's real path. The `spec` skill sent unattended failures to "Blocked" while `away` uses `docs/plans/blocked.md`; both now name the file (v1-skills#D8).
 - `v1-skills#D1` still said the harness has six skills while eight ship, and nothing superseded it; `AGENTS.md` cited it. Added `v1.3-away#D7` superseding it and updated the table. The citation check from v1.4 confirms the fix: with the old table it reports `v1-skills#D1 superseded; cite v1.3-away#D7`.
+- A project whose AGENTS.md was copied from the template and left unfilled passed `bin/doctor --project` with only an odd `unknown commit <short commit>` warning. Doctor now warns that template placeholders remain (`tests/test_doctor.py::test_unfilled_template_is_reported`).
 
 ## Covered areas
 - Pass 1: README against real behavior (install, check and undo, eval case count). Case count and commands match.
@@ -68,3 +69,4 @@ Findings from audit passes over the harness. Each entry has evidence and a size.
 - Pass 6: installed git hooks in a temporary repository (scoped and breaking subjects, Hangul in subject and body, non-conventional subjects, revert, merge, cherry-pick, a chained repo-local hook, a staged secret, a 3 MB binary in 0.17 s). All behaved as specified; no finding. Note for the user: Hangul in the commit body is rejected as well as in the subject unless `.harness.json` allows it.
 - Pass 7: plan documents against the code (decisions still in force, roadmap, statements of counts). One outdated decision fixed. Older spec appendices no longer match the current skill files; they are kept as the record of what was approved at the time.
 - Pass 8: privacy scan with sample lines and the Claude deny patterns. Two small findings recorded.
+- Pass 9: the project template through `bin/doctor`, and what `scripts/check` covers (privacy and decision checks run inside the test suite). One bug fixed.
