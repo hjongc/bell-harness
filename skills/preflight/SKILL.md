@@ -1,6 +1,6 @@
 ---
 name: preflight
-description: "Review the current diff against its spec before pushing: size, scope, unnecessary code, decisions it touches, and a rerun of the done condition. Use before the first push of a spec's work, when a delegated change comes back for review, or when the user says \"preflight\", \"pre-push\", \"푸시 전 점검\", or when a delegated change comes back for review."
+description: "Review the current diff against its spec before pushing: size, scope, unnecessary code, decisions it touches, and a rerun of the done condition. Use before the first push of a spec's work, when a delegated change comes back for review, or when the user says \"preflight\", \"pre-push\" or \"푸시 전 점검\"."
 ---
 
 # Preflight
