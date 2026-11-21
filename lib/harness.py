@@ -14,6 +14,7 @@ NEVER_TOUCH_NAMES = ("synced", ".system")
 SETTINGS = ".claude/settings.json"
 CLAUDE_MD = ".claude/CLAUDE.md"
 HOOKS_KEY = "core.hooksPath"
+BACKUPS = Path(".bell-harness/backups")
 MODEL_LINE = re.compile(r"^model\s*=")
 
 
@@ -68,17 +69,42 @@ def link_target(path):
     return Path(os.path.normpath(str(target)))
 
 
+def backup_manifest(backup):
+    """Return a regular manifest and its status without following stable links."""
+    manifest = backup / "manifest.jsonl"
+    try:
+        if backup.is_symlink():
+            return None, "unsafe"
+        if backup.is_dir():
+            if manifest.is_symlink():
+                return None, "unsafe"
+            if manifest.is_file():
+                return manifest, "valid"
+    except OSError:
+        pass
+    return None, "damaged"
+
+
 def previous_roots(home):
     """Yield earlier install roots from backup manifests, including restored ones."""
+    home = Path(home)
     current = Path(__file__).resolve().parents[1]
-    backups = Path(home) / ".bell-harness/backups"
-    for manifest in backups.glob("*/manifest.jsonl"):
+    try:
+        if symlinked_directory(home, BACKUPS) is not None:
+            return
+        backups = list((home / BACKUPS).iterdir())
+    except OSError:
+        return
+    for backup in backups:
+        manifest, _ = backup_manifest(backup)
+        if manifest is None:
+            continue
         try:
             with manifest.open("rb") as stream:
                 for line in stream:
                     try:
-                        entry = json.loads(line)
-                    except ValueError:
+                        entry = json.loads(line.decode("utf-8"))
+                    except (ValueError, RecursionError):
                         continue
                     if not isinstance(entry, dict) or entry.get("action") != "git-config":
                         continue

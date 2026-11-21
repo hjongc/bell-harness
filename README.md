@@ -40,10 +40,13 @@ bin/doctor                      # PASS/WARN/FAIL per check; exit 1 on any FAIL
 bin/doctor --project ~/code/app # also check project instructions, table paths, decisions and commit messages
 bin/doctor --project-only ~/code/app # check only project files and Git history
 bin/doctor --discovery          # ask claude and codex which skills they actually load
+bin/setup --list-backups         # list IDs, active/restored state and manifest health
 bin/setup --restore <id>        # undo one backup (or: all), skipping anything changed since setup
 ```
 
 If you move the harness repository, run `bin/setup` from its new location to repair the links and hooks path.
+
+The backup list is read-only and sorted newest first. A valid record describes the manifest's structure. Restore also checks the current state before undoing actions. Listing, restore, and earlier-root discovery reject links at the backup directory, backup ID, or manifest.
 
 Restore checks each backup manifest before undoing its actions. If a retired item's saved or destination path has a symlinked parent, restore keeps that backup available for retry after the path is fixed. It undoes settings key by key, so settings changed after setup survive. Uninstalled plugins are not reinstalled automatically; restore prints the `claude plugin install` command.
 

@@ -3,6 +3,7 @@
 
 Usage: bin/setup [--dry-run]
        bin/setup --restore <id>|all [--dry-run]
+       bin/setup --list-backups
 """
 import argparse
 import datetime
@@ -22,7 +23,6 @@ import harness as h  # noqa: E402
 
 
 HOOKS = ROOT / "git/hooks"
-BACKUPS = Path(".bell-harness/backups")
 
 
 class Abort(Exception):
@@ -138,7 +138,7 @@ def describe(action, old_roots):
 # ---------- apply ----------
 
 def new_backup():
-    folder = HOME / BACKUPS
+    folder = HOME / h.BACKUPS
     stamp = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     name, count = stamp, 1
     while h.exists(folder / name) or h.exists(folder / (name + ".restored")):
@@ -449,13 +449,63 @@ def backup_order(name):
     return stamp, int(count or 0)
 
 
+def read_backup(backup):
+    manifest, status = h.backup_manifest(backup)
+    if manifest is None:
+        return [], status, None
+    entries = []
+    try:
+        with manifest.open("rb") as stream:
+            for number, line in enumerate(stream, 1):
+                try:
+                    line = line.decode("utf-8")
+                    if not line.strip():
+                        continue
+                    entry = json.loads(line)
+                except (ValueError, RecursionError):
+                    return [], "damaged", number
+                if not valid_entry(entry):
+                    return [], "damaged", number
+                entries.append(entry)
+    except OSError:
+        return [], "damaged", None
+    return entries, "valid", None
+
+
+def list_backups():
+    try:
+        directory = list((HOME / h.BACKUPS).iterdir())
+    except FileNotFoundError:
+        directory = []
+    except OSError:
+        say("list-backups: cannot read the backup directory")
+        return 2
+
+    backups = []
+    for backup in directory:
+        backup_id = backup.name.removesuffix(".restored")
+        if BACKUP_NAME.fullmatch(backup_id):
+            state = "active" if backup.name == backup_id else "restored"
+            backups.append((backup_id, state, backup))
+    if not backups:
+        say("list-backups: no backups found")
+        return 0
+
+    damaged = False
+    for backup_id, state, backup in sorted(backups, key=lambda item: backup_order(item[0]), reverse=True):
+        _, status, _ = read_backup(backup)
+        say("{} {} {}".format(backup_id, state, status))
+        damaged = damaged or status != "valid"
+    return 1 if damaged else 0
+
+
 def restore(name, dry_run):
-    folder = HOME / BACKUPS
+    folder = HOME / h.BACKUPS
     if name == "all":
         names = sorted((p.name for p in folder.iterdir()
-                        if p.is_dir() and BACKUP_NAME.match(p.name)),
+                        if BACKUP_NAME.fullmatch(p.name) and (p.is_symlink() or p.is_dir())),
                        key=backup_order, reverse=True) if folder.is_dir() else []
-    elif BACKUP_NAME.match(name):
+    elif BACKUP_NAME.fullmatch(name):
         names = [name]
     else:
         say("restore: {!r} is not a backup id (expected <UTC timestamp>[-n] or all)".format(name))
@@ -465,22 +515,18 @@ def restore(name, dry_run):
         return 0
     for backup_name in names:
         backup = folder / backup_name
-        manifest = backup / "manifest.jsonl"
-        if not manifest.is_file():
-            say("restore: no backup {}".format(backup_name))
+        entries, status, number = read_backup(backup)
+        if status == "unsafe":
+            say("restore: backup {} has a symlinked directory or manifest. Nothing was undone".format(backup_name))
             return 2
-        entries = []
-        for number, line in enumerate(manifest.read_text(encoding="utf-8").splitlines(), 1):
-            if not line.strip():
-                continue
-            try:
-                entry = json.loads(line)
-            except ValueError:
-                entry = None
-            if not valid_entry(entry):
-                say("restore: {}:{} is damaged; nothing was undone and the backup is kept".format(
-                    manifest, number))
-                return 2
+        if status == "damaged":
+            if number is None:
+                say("restore: no readable manifest for backup {}".format(backup_name))
+            else:
+                say("restore: {}:{} is damaged (nothing was undone and the backup is kept)".format(
+                    backup / "manifest.jsonl", number))
+            return 2
+        for entry in entries:
             if entry["action"] == "retire":
                 item = Path(entry["path"])
                 for path in (item, backup.relative_to(HOME) / "home" / item):
@@ -489,7 +535,6 @@ def restore(name, dry_run):
                         say("restore: cannot restore ~/{} (symlinked parent {}). The backup is kept".format(
                             item, parent))
                         return 2
-            entries.append(entry)
         for entry in reversed(entries):
             undo(entry, backup, dry_run)
         if not dry_run:
@@ -501,13 +546,19 @@ def restore(name, dry_run):
 def main():
     parser = argparse.ArgumentParser(prog="setup", description="Install or restore bell-harness.")
     parser.add_argument("--dry-run", action="store_true", help="print the plan and change nothing")
-    parser.add_argument("--restore", metavar="ID|all", help="undo the actions of a backup")
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument("--restore", metavar="ID|all", help="undo the actions of a backup")
+    mode.add_argument("--list-backups", action="store_true", help="list backup IDs and validate their manifests")
     args = parser.parse_args()
-    linked = h.symlinked_directory(HOME, BACKUPS)
+    if args.list_backups and args.dry_run:
+        parser.error("--list-backups cannot be combined with --dry-run")
+    linked = h.symlinked_directory(HOME, h.BACKUPS)
     if linked is not None:
-        command = "restore" if args.restore else "setup"
-        say("{}: backup directory {} traverses symlink {}".format(command, HOME / BACKUPS, linked))
+        command = "list-backups" if args.list_backups else ("restore" if args.restore else "setup")
+        say("{}: backup directory {} traverses symlink {}".format(command, HOME / h.BACKUPS, linked))
         return 2
+    if args.list_backups:
+        return list_backups()
     if args.restore:
         return restore(args.restore, args.dry_run)
     return install(args.dry_run)

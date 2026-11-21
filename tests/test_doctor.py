@@ -1,3 +1,4 @@
+import json
 import os
 import subprocess
 import tempfile
@@ -94,6 +95,44 @@ class DoctorTests(unittest.TestCase):
         self.assertIn("FAIL stale link: ~/.agents/skills/obsolete", result.stdout)
         self.assertIn("WARN unmanaged skills: ~/.agents/skills/foreign\n", result.stdout)
         self.assertTrue(link.is_symlink())
+
+    def test_earlier_roots_skip_unsafe_manifests(self):
+        fx = self.fx
+        backups = fx.home / ".bell-harness/backups"
+        outside = fx.tmp / "outside-backup"
+        outside.mkdir()
+        foreign = fx.tmp / "foreign-harness"
+        external = outside / "manifest.jsonl"
+        external.write_text(json.dumps({
+            "action": "git-config",
+            "path": "core.hooksPath",
+            "value": str(foreign / "git/hooks"),
+            "previous": "absent",
+        }) + "\n", encoding="utf-8")
+
+        (backups / "20261122T010102Z").symlink_to(outside, target_is_directory=True)
+        backup = backups / "20261122T010101Z.restored"
+        backup.mkdir()
+        (backup / "manifest.jsonl").symlink_to(external)
+        invalid_encoding = backups / "20261122T010100Z"
+        invalid_encoding.mkdir()
+        (invalid_encoding / "manifest.jsonl").write_bytes(
+            external.read_text(encoding="utf-8").strip().encode("utf-16"))
+        (fx.home / ".agents/skills/obsolete").symlink_to(foreign / "skills/obsolete")
+
+        result = self.doctor()
+        self.assertEqual(result.returncode, 0, result.stdout)
+        self.assertIn("WARN unmanaged skills: ~/.agents/skills/obsolete", result.stdout)
+        self.assertNotIn("stale link:", result.stdout)
+
+        relocated = backups.rename(fx.tmp / "relocated-backups")
+        (relocated / "20261122T010103Z").mkdir()
+        (relocated / "20261122T010103Z/manifest.jsonl").write_bytes(external.read_bytes())
+        backups.symlink_to(relocated, target_is_directory=True)
+        result = self.doctor()
+        self.assertEqual(result.returncode, 0, result.stdout)
+        self.assertIn("WARN unmanaged skills: ~/.agents/skills/obsolete", result.stdout)
+        self.assertNotIn("stale link:", result.stdout)
 
     def test_broken_link_fails(self):
         os.unlink(str(self.fx.home / ".claude/skills/probe"))

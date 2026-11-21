@@ -480,7 +480,7 @@ class SetupTests(unittest.TestCase):
         backups.symlink_to(outside)
         before = tree_snapshot(fx.home)
 
-        for args in (("--dry-run",), (), ("--restore", "all")):
+        for args in (("--dry-run",), (), ("--restore", "all"), ("--list-backups",)):
             with self.subTest(args=args):
                 result = fx.run("setup", *args)
                 self.assertEqual(result.returncode, 2, result.stdout)
@@ -506,6 +506,82 @@ class SetupTests(unittest.TestCase):
         self.assertFalse((fx.home / item).exists())
         backup = fx.home / ".bell-harness/backups" / fx.backups()[0]
         self.assertTrue((backup / "home" / item).is_file())
+
+    def test_list_backups_reports_state_in_numeric_order_without_changes(self):
+        fx = self.fx
+        root = fx.home / ".bell-harness/backups"
+        names = ("20261122T010101Z-2.restored", "20261122T010101Z-10", "20261121T010101Z")
+        payload = json.dumps({"action": "uninstall-plugin", "path": "fixture-private-marker"}) + "\n"
+        files = []
+        for name in (*names, "unrecognized"):
+            manifest = root / name / "manifest.jsonl"
+            manifest.parent.mkdir(parents=True, exist_ok=True)
+            manifest.write_text(payload, encoding="utf-8")
+            files.append(manifest)
+        before = (tree_snapshot(fx.home), fx.settings(), fx.backups(),
+                  [path.read_bytes() for path in files], Path(fx.env["GIT_CONFIG_GLOBAL"]).read_bytes())
+
+        result = fx.run("setup", "--list-backups")
+        self.assertEqual(result.returncode, 0, result.stdout)
+        self.assertEqual(result.stdout.splitlines(), [
+            "20261122T010101Z-10 active valid",
+            "20261122T010101Z-2 restored valid",
+            "20261121T010101Z active valid",
+        ])
+        after = (tree_snapshot(fx.home), fx.settings(), fx.backups(),
+                 [path.read_bytes() for path in files], Path(fx.env["GIT_CONFIG_GLOBAL"]).read_bytes())
+        self.assertEqual(after, before)
+        self.assertEqual(fx.claude_calls(), [])
+
+    def test_list_backups_accepts_empty_inventory_and_is_exclusive(self):
+        fx = self.fx
+        result = fx.run("setup", "--list-backups")
+        self.assertEqual(result.returncode, 0, result.stdout)
+        self.assertIn("no backups found", result.stdout)
+        for other in (("--dry-run",), ("--restore", "all")):
+            with self.subTest(other=other):
+                result = fx.run("setup", "--list-backups", *other)
+                self.assertEqual(result.returncode, 2, result.stdout)
+
+    def test_backup_reads_reject_linked_and_damaged_manifests(self):
+        fx = self.fx
+        root = fx.home / ".bell-harness/backups"
+        outside = fx.tmp / "outside-backup"
+        outside.mkdir()
+        external = outside / "manifest.jsonl"
+        payload = b'{"action":"uninstall-plugin","path":"fixture-private-marker"}\n'
+        external.write_bytes(payload)
+
+        root.mkdir(parents=True)
+        linked_id = root / "20261122T010104Z"
+        linked_id.symlink_to(outside, target_is_directory=True)
+        linked_manifest = root / "20261122T010103Z"
+        linked_manifest.mkdir()
+        (linked_manifest / "manifest.jsonl").symlink_to(external)
+        invalid_bytes = root / "20261122T010102Z"
+        invalid_bytes.mkdir()
+        (invalid_bytes / "manifest.jsonl").write_bytes(b"\xff\n")
+        malformed = root / "20261122T010101Z.restored"
+        malformed.mkdir()
+        (malformed / "manifest.jsonl").write_text("fixture-private-marker\n", encoding="utf-8")
+
+        result = fx.run("setup", "--list-backups")
+        self.assertEqual(result.returncode, 1, result.stdout)
+        self.assertEqual(result.stdout.splitlines(), [
+            "20261122T010104Z active unsafe",
+            "20261122T010103Z active unsafe",
+            "20261122T010102Z active damaged",
+            "20261122T010101Z restored damaged",
+        ])
+        for backup in (linked_id, linked_manifest, invalid_bytes):
+            with self.subTest(backup=backup.name):
+                result = fx.run("setup", "--restore", backup.name, "--dry-run")
+                self.assertEqual(result.returncode, 2, result.stdout)
+                self.assertNotIn("Traceback", result.stdout)
+                self.assertNotIn("fixture-private-marker", result.stdout)
+        self.assertEqual(external.read_bytes(), payload)
+        self.assertTrue(linked_id.is_symlink())
+        self.assertTrue((linked_manifest / "manifest.jsonl").is_symlink())
 
     def test_restore_all_orders_numbered_backups(self):
         loader = importlib.machinery.SourceFileLoader("harness_setup", str(ROOT / "bin/setup"))
