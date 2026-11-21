@@ -12,6 +12,7 @@ from pathlib import Path
 CANDIDATE = re.compile(r"^- D\d")
 LEGACY_CANDIDATE = re.compile(r"^- D[0-9]+\b")
 FENCE = re.compile(r"^ {0,3}(`{3,}|~{3,})(.*)$")
+SECTION_HEADING = re.compile(r"^ {0,3}#{1,2}[ \t]")
 NESTED_ITEM = re.compile(r"^\s+(?:[-*+]|\d+[.)])\s")
 HEAD = re.compile(r"^- D([1-9][0-9]*): (\S.*)$")
 REF = re.compile(r"^[a-z0-9][a-z0-9.-]*#D[1-9][0-9]*$")
@@ -70,7 +71,7 @@ def _parse_line(slug, number_line, line):
     return Decision(slug, int(head.group(1)), number_line, head.group(2), fields), None
 
 
-def decision_lines(lines):
+def section_lines(lines, section):
     """Yield numbered lines outside fenced code, with their section membership."""
     in_section = False
     fence = ""
@@ -83,8 +84,8 @@ def decision_lines(lines):
         if marker:
             fence = marker[1]
             continue
-        if re.match(r"^#{1,2}[ \t]", line):
-            in_section = line.strip() == "## Decisions"
+        if SECTION_HEADING.match(line):
+            in_section = line.strip() == section
             continue
         yield number, line, in_section
 
@@ -96,12 +97,13 @@ def parse(text, slug):
     """
     decisions, errors = [], []
     lines = text.splitlines()
-    for number, line, in_section in decision_lines(lines):
+    for number, line, in_section in section_lines(lines, "## Decisions"):
         if not in_section or not CANDIDATE.match(line):
             continue
         record = line.rstrip()
         for extra in lines[number:]:  # a record may be hard-wrapped onto indented lines
-            if not extra.strip() or not extra[:1].isspace() or NESTED_ITEM.match(extra):
+            if (not extra.strip() or not extra[:1].isspace() or NESTED_ITEM.match(extra)
+                    or FENCE.match(extra) or SECTION_HEADING.match(extra)):
                 break
             record += " " + extra.strip()
         decision, error = _parse_line(slug, number, record)
@@ -117,7 +119,7 @@ def legacy(root):
     root = Path(root)
     for path in sorted((root / "docs/plans").glob("*.md")):
         lines = path.read_text(encoding="utf-8").splitlines()
-        count = sum(1 for _, line, in_section in decision_lines(lines)
+        count = sum(1 for _, line, in_section in section_lines(lines, "## Decisions")
                     if not in_section and LEGACY_CANDIDATE.match(line))
         if count:
             yield path.relative_to(root).as_posix(), count
@@ -128,16 +130,9 @@ def table_citation_problems(root, refs, successors):
     if not agents.is_file():
         return []
     problems = []
-    in_section = False
-    in_fence = False
-    for number, raw in enumerate(agents.read_text(encoding="utf-8").splitlines(), 1):
+    lines = agents.read_text(encoding="utf-8").splitlines()
+    for number, raw, in_section in section_lines(lines, "## Sources of truth"):
         line = raw.strip()
-        if line.startswith("```"):
-            in_fence = not in_fence
-        if in_fence:
-            continue
-        if re.match(r"^#{1,2} ", line):
-            in_section = line == "## Sources of truth"
         if not in_section or "|" not in line:
             continue
         cells = re.split(r"(?<!\\)\|", line.strip("|"))

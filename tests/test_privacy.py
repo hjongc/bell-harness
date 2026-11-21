@@ -5,6 +5,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from harness_env import make_env
+
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "lib"))
@@ -12,11 +14,11 @@ from privacy import scan
 
 
 class PrivacyTests(unittest.TestCase):
-    def run_fixture_scan(self, root):
+    def run_fixture_scan(self, root, env=None):
         return subprocess.run(
             [sys.executable, str(ROOT / "lib/privacy.py"), str(root)],
             env={
-                **os.environ,
+                **(os.environ if env is None else env),
                 "GIT_CEILING_DIRECTORIES": str(root.parent.resolve()),
                 "PYTHONDONTWRITEBYTECODE": "1",
             },
@@ -68,11 +70,48 @@ class PrivacyTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             (root / "sample.txt").write_text("fixture" + "@mail" + ".invalid\n", encoding="utf-8")
-            (root / ".privacy-allow").write_text("sample.* email\n", encoding="utf-8")
+            (root / ".privacy-allow").write_text("  #notes\n\nsample.* email\n", encoding="utf-8")
             result = self.run_fixture_scan(root)
 
         self.assertEqual(result.returncode, 0)
         self.assertEqual(result.stdout, "PRIVACY: clean\n")
+        self.assertEqual(result.stderr, "")
+
+    def test_scans_symlink_text_without_reading_tracked_descendants(self):
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            root = base / "repo"
+            root.mkdir()
+            env = make_env(base)
+            tracked = root / "tracked"
+            tracked.mkdir()
+            fixture = tracked / "fixture.txt"
+            fixture.write_text("tracked\n", encoding="utf-8")
+            for args in (("init", "-q"), ("add", "-A"), ("commit", "-qm", "test: seed tracked file")):
+                subprocess.run(["git", *args], cwd=root, env=env, check=True, capture_output=True)
+            fixture.unlink()
+            tracked.rmdir()
+            outside = base / ("link" + "@mail" + ".invalid")
+            outside.mkdir()
+            (outside / fixture.name).write_text("external" + "@mail" + ".invalid\n", encoding="utf-8")
+            tracked.symlink_to(Path("..") / outside.name)
+            result = self.run_fixture_scan(root, env)
+
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertEqual(result.stdout, "PRIVACY: tracked:1: email\n")
+        self.assertEqual(result.stderr, "")
+
+    def test_incomplete_allow_rule_reports_location_without_hiding_findings(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / ".privacy-allow").write_text("# notes\nincomplete-rule\n", encoding="utf-8")
+            (root / "sample.txt").write_text("fixture" + "@mail" + ".invalid\n", encoding="utf-8")
+            result = self.run_fixture_scan(root)
+
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("PRIVACY: .privacy-allow:2: expected a path glob and detection kind", result.stdout)
+        self.assertIn("PRIVACY: sample.txt:1: email", result.stdout)
+        self.assertNotIn("incomplete-rule", result.stdout + result.stderr)
         self.assertEqual(result.stderr, "")
 
     def test_repository_is_clean(self):

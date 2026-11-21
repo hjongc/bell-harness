@@ -22,6 +22,7 @@ import harness as h  # noqa: E402
 
 
 HOOKS = ROOT / "git/hooks"
+BACKUPS = Path(".bell-harness/backups")
 
 
 class Abort(Exception):
@@ -75,6 +76,10 @@ def plan(old_roots):
     actions = []
     retire_paths, retire_plugins = h.retire_config(ROOT, HOME)
     for item in retire_paths:
+        parent = h.symlinked_directory(HOME, Path(item).parent)
+        if parent is not None:
+            say("setup: skipped ~/{} (symlinked parent {})".format(item, parent))
+            continue
         path = HOME / item
         if h.exists(path) and not h.is_managed(path, ROOT, old_roots):
             actions.append({"action": "retire", "path": item})
@@ -133,7 +138,7 @@ def describe(action, old_roots):
 # ---------- apply ----------
 
 def new_backup():
-    folder = HOME / ".bell-harness/backups"
+    folder = HOME / BACKUPS
     stamp = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     name, count = stamp, 1
     while h.exists(folder / name) or h.exists(folder / (name + ".restored")):
@@ -220,6 +225,9 @@ def apply(action, backup):
     kind, item = action["action"], action["path"]
     entry = {"action": kind, "path": item}
     if kind == "retire":
+        parent = h.symlinked_directory(HOME, Path(item).parent)
+        if parent is not None:
+            raise Abort("cannot retire ~/{} (symlinked parent {})".format(item, parent))
         stash(item, backup)
         entry["previous"] = "backup"
     elif kind == "uninstall-plugin":
@@ -345,6 +353,21 @@ def undo_settings(entries, dry_run):
 KNOWN_ACTIONS = ("retire", "uninstall-plugin", "link", "unlink", "write", "git-config", "settings")
 
 
+def valid_setting_entry(entry):
+    if not isinstance(entry, dict):
+        return False
+    key = entry.get("key")
+    if not isinstance(key, list) or not key or not all(isinstance(part, str) for part in key):
+        return False
+    if entry.get("op") == "add":
+        return "item" in entry
+    if entry.get("op") == "set":
+        if "absent" in entry:
+            return "value" in entry and entry["absent"] is True and "previous" not in entry
+        return "value" in entry and "previous" in entry
+    return False
+
+
 def valid_entry(entry):
     if not isinstance(entry, dict) or entry.get("action") not in KNOWN_ACTIONS:
         return False
@@ -353,12 +376,19 @@ def valid_entry(entry):
         return False
     if kind in ("retire", "link", "unlink", "write"):
         parts = Path(item).parts
-        return (bool(parts) and not Path(item).is_absolute() and ".." not in parts
-                and parts[0] in h.MANAGED_ROOTS and not any(h.never_touch(p) for p in parts[1:]))
+        if (len(parts) < 2 or Path(item).is_absolute() or ".." in parts
+                or parts[0] not in h.MANAGED_ROOTS or any(h.never_touch(p) for p in parts[1:])):
+            return False
+        if kind in ("link", "write"):
+            field = "target" if kind == "link" else "hash"
+            return entry.get("previous") in ("backup", "absent") and isinstance(entry.get(field), str)
+        return True
     if kind == "git-config":
-        return item == h.HOOKS_KEY
+        return (item == h.HOOKS_KEY and isinstance(entry.get("value"), str)
+                and isinstance(entry.get("previous"), str))
     if kind == "settings":
-        return item == h.SETTINGS and isinstance(entry.get("previous"), list)
+        changes = entry.get("previous")
+        return item == h.SETTINGS and isinstance(changes, list) and all(map(valid_setting_entry, changes))
     return True
 
 
@@ -420,7 +450,7 @@ def backup_order(name):
 
 
 def restore(name, dry_run):
-    folder = HOME / ".bell-harness/backups"
+    folder = HOME / BACKUPS
     if name == "all":
         names = sorted((p.name for p in folder.iterdir()
                         if p.is_dir() and BACKUP_NAME.match(p.name)),
@@ -451,6 +481,14 @@ def restore(name, dry_run):
                 say("restore: {}:{} is damaged; nothing was undone and the backup is kept".format(
                     manifest, number))
                 return 2
+            if entry["action"] == "retire":
+                item = Path(entry["path"])
+                for path in (item, backup.relative_to(HOME) / "home" / item):
+                    parent = h.symlinked_directory(HOME, path.parent)
+                    if parent is not None:
+                        say("restore: cannot restore ~/{} (symlinked parent {}). The backup is kept".format(
+                            item, parent))
+                        return 2
             entries.append(entry)
         for entry in reversed(entries):
             undo(entry, backup, dry_run)
@@ -465,6 +503,11 @@ def main():
     parser.add_argument("--dry-run", action="store_true", help="print the plan and change nothing")
     parser.add_argument("--restore", metavar="ID|all", help="undo the actions of a backup")
     args = parser.parse_args()
+    linked = h.symlinked_directory(HOME, BACKUPS)
+    if linked is not None:
+        command = "restore" if args.restore else "setup"
+        say("{}: backup directory {} traverses symlink {}".format(command, HOME / BACKUPS, linked))
+        return 2
     if args.restore:
         return restore(args.restore, args.dry_run)
     return install(args.dry_run)

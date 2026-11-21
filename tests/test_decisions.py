@@ -54,6 +54,13 @@ class ParseTests(unittest.TestCase):
         self.assertEqual(errors, [])
         self.assertEqual([(d.ref, d.by) for d in decisions], [("spec#D1", "user"), ("spec#D2", "observed")])
 
+    def test_fence_ends_an_indented_record(self):
+        records, errors = parse(
+            "## Decisions\n- D1: Keep it -- why: reuse -- by: user\n  ~~~text\n"
+            "  example\n  ~~~\n", "sample")
+        self.assertEqual(errors, [])
+        self.assertEqual([record.ref for record in records], ["sample#D1"])
+
     def test_rejects_malformed_lines(self):
         for line in (
             "- D1: Keep it -- by: user",
@@ -134,6 +141,16 @@ class CheckTests(unittest.TestCase):
             path = root / "docs/plans/a.md"
             path.write_text(path.read_text().replace(VALID, VALID + " -- supersedes: a#D4"))
             self.assertIn("AGENTS.md:2: a#D1 has no active successor", check(root))
+
+    def test_sources_table_ignores_fenced_examples(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "AGENTS.md").write_text(
+                "## Sources of truth\n~~~markdown\n| Example | Code | absent#D1 |\n"
+                "~~~\n| Actual row | Code | missing#D1 |\n",
+                encoding="utf-8",
+            )
+            self.assertEqual(check(root), ["AGENTS.md:5: unknown decision missing#D1"])
 
     def test_repository_records_are_valid(self):
         self.assertEqual(check(ROOT), [])

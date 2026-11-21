@@ -7,6 +7,7 @@ It calls paid models, so run it by hand (see README.md, "Evals").
 """
 import argparse
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -33,13 +34,19 @@ def load_cases():
     return cases
 
 
-def prepare(fixture, tmp):
+def fixture_environment():
+    # Git exports these variables to hooks. They would redirect fixture and host commands.
+    local_names = set(subprocess.check_output(["git", "rev-parse", "--local-env-vars"], text=True).split())
+    return {key: value for key, value in os.environ.items() if key not in local_names}
+
+
+def prepare(fixture, tmp, env):
     """Copy a fixture into tmp and commit it."""
     target = Path(tmp) / "repo"
     shutil.copytree(str(FIXTURES / fixture), str(target))
     git = ["git", "-c", "user.name=Eval", "-c", "user.email=eval@example.com"]
     for args in (["init", "-q", "-b", "main"], ["add", "-A"], ["commit", "-q", "-m", "chore: add eval fixture"]):
-        subprocess.run(git + args, cwd=str(target), check=True, stdout=subprocess.DEVNULL,
+        subprocess.run(git + args, cwd=str(target), env=env, check=True, stdout=subprocess.DEVNULL,
                        stderr=subprocess.DEVNULL)
     return target
 
@@ -81,18 +88,21 @@ def command_text(command):
 
 def parse_codex(text, names):
     """Return (skills loaded in order, last agent message)."""
-    skills, answer, seen = [], "", set()
+    skills, answer = [], ""
+    skill_paths = {
+        name: re.compile(r"\.agents/skills/" + re.escape(name) + r"""/SKILL\.md(?=$|[\s'";|&<>()])""")
+        for name in names
+    }
     for event in json_lines(text):
+        if event.get("type") != "item.completed":
+            continue
         item = event.get("item")
         if not isinstance(item, dict):
             continue
         kind = str(item.get("type", ""))
-        if "command" in kind and "command" in item:
-            command = command_text(item["command"])
-            for name in names:
-                if ".agents/skills/{}/SKILL.md".format(name) in command and (name, item.get("id")) not in seen:
-                    seen.add((name, item.get("id")))
-                    skills.append(name)
+        if kind == "command_execution" and item.get("exit_code") == 0:
+            command = command_text(item.get("command"))
+            skills.extend(name for name, path in skill_paths.items() if path.search(command))
         elif kind == "agent_message" and isinstance(item.get("text"), str):
             answer = item["text"]
     return skills, answer
@@ -124,13 +134,13 @@ def grade(case, skills, answer):
     return None
 
 
-def run_one(host, case, timeout):
+def run_one(host, case, timeout, env):
     names = harness_skills()
     with tempfile.TemporaryDirectory(prefix="harness-eval-") as tmp:
         try:
-            repo = prepare(case["fixture"], tmp)
+            repo = prepare(case["fixture"], tmp, env)
             command = command_for(host, case["prompt"], repo, case.get("max_turns", 8))
-            result = subprocess.run(command, cwd=str(repo),
+            result = subprocess.run(command, cwd=str(repo), env=env,
                                     stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
                                     stderr=subprocess.PIPE, timeout=timeout)
         except subprocess.TimeoutExpired:
@@ -143,12 +153,12 @@ def run_one(host, case, timeout):
     else:
         skills, answer = parse_codex(text, names)
     skills = [name for name in skills if name in names]
-    failure = grade(case, skills, answer)
+    if answer.strip():
+        failure = grade(case, skills, answer)
+    else:
+        failure = "exit {}".format(result.returncode) if result.returncode else "missing final answer"
     detail = "skills=[{}]".format(", ".join(skills))
     if failure:
-        detail += " " + failure
-    elif result.returncode != 0 and not answer:
-        failure = "exit {}".format(result.returncode)
         detail += " " + failure
     elif result.returncode != 0:
         # shortcut: a run that answered but exited nonzero (for example at the turn limit) is
@@ -187,8 +197,13 @@ def main(argv=None):
     jobs = [(host, case) for case in cases if not args.cases or case["id"] in args.cases
             for host in hosts if host in case["hosts"]]
     attempts = [job for job in jobs for _ in range(args.repeat)]
+    try:
+        env = fixture_environment()
+    except (OSError, subprocess.CalledProcessError) as error:
+        print("cannot determine Git repository environment: {}".format(error), file=sys.stderr)
+        return 2
     with ThreadPoolExecutor(max_workers=args.jobs) as pool:
-        results = list(pool.map(lambda job: run_one(job[0], job[1], args.timeout), attempts))
+        results = list(pool.map(lambda job: run_one(job[0], job[1], args.timeout, env), attempts))
     passed = 0
     for start in range(0, len(results), args.repeat):
         group = results[start:start + args.repeat]

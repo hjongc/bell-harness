@@ -31,7 +31,7 @@ def codex_events(skills, answer):
         item = {"id": "item_%d" % index, "type": "command_execution",
                 "command": "/bin/zsh -lc 'cat ~/.agents/skills/%s/SKILL.md'" % name}
         lines.append({"type": "item.started", "item": item})
-        lines.append({"type": "item.completed", "item": item})
+        lines.append({"type": "item.completed", "item": {**item, "exit_code": 0}})
     lines.append({"type": "item.completed", "item": {"id": "m", "type": "agent_message", "text": answer}})
     return "\n".join(json.dumps(line) for line in lines) + "\n"
 
@@ -111,6 +111,65 @@ class EvalsTest(unittest.TestCase):
             ("claude", "route-probe", True, "first"),
             ("claude", "route-probe", False, "second"),
         ])
+
+    def test_fixture_ignores_inherited_git_repository_context(self):
+        caller = self.tmp / "caller"
+        caller.mkdir()
+        caller_env = dict(self.env)
+
+        def git(*args):
+            return subprocess.check_output(["git", *args], cwd=caller, env=caller_env, text=True).strip()
+
+        git("init", "-q", "-b", "main")
+        (caller / "outside.txt").write_text("first\n")
+        git("add", "outside.txt")
+        git("commit", "-qm", "test: initialize caller")
+        head = git("rev-parse", "HEAD")
+        (caller / "outside.txt").write_text("second\n")
+        git("add", "outside.txt")
+        staged = git("diff", "--cached")
+
+        events = claude_events(["probe"], "ok")
+        write_stub(self.tmp, "claude", "#!/usr/bin/env python3\n"
+                   "import subprocess\n"
+                   "from pathlib import Path\n"
+                   "assert Path('.git').is_dir()\n"
+                   "assert subprocess.check_output(['git', 'rev-parse', '--show-toplevel'], text=True).strip() "
+                   "== str(Path.cwd())\n"
+                   "index = subprocess.check_output(['git', 'rev-parse', '--git-path', 'index'], text=True).strip()\n"
+                   "assert Path(index).resolve() == Path('.git/index').resolve()\n"
+                   "print({!r})\n".format(events))
+        self.env.update(GIT_DIR=str(caller / ".git"), GIT_WORK_TREE=str(caller),
+                        GIT_INDEX_FILE=str(caller / ".git/index"))
+        result = self.run_evals("--case", "route-probe", "--host", "claude")
+        self.assertEqual(git("rev-parse", "HEAD"), head)
+        self.assertEqual(git("diff", "--cached"), staged)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def test_codex_requires_a_successful_skill_read(self):
+        for event_type, exit_code, suffix in (
+            ("item.started", None, ""),
+            ("item.completed", 1, ""),
+            ("item.completed", 0, ".bak"),
+        ):
+            with self.subTest(event=event_type, exit_code=exit_code, suffix=suffix):
+                item = {"id": "read", "type": "command_execution",
+                        "command": "cat ~/.agents/skills/spec/SKILL.md" + suffix,
+                        "exit_code": exit_code}
+                events = [{"type": event_type, "item": item},
+                          {"type": "item.completed", "item": {"type": "agent_message", "text": "ok"}}]
+                output = self.tmp / "codex-events.txt"
+                output.write_text("\n".join(json.dumps(event) for event in events))
+                write_stub(self.tmp, "codex", STUB.format(events=str(output)))
+                result = self.run_evals("--case", "route-spec", "--host", "codex")
+                self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+                self.assertIn("expected skill spec", result.stdout)
+
+    def test_empty_final_answer_fails(self):
+        self.both([], "   ")
+        result = self.run_evals("--case", "route-small-edit")
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertEqual(result.stdout.count("missing final answer"), 2)
 
     def test_wrong_skill_fails(self):
         self.both(["spec"], "ok")

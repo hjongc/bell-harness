@@ -31,22 +31,23 @@ bin/setup             # apply it, with a backup, then run bin/doctor
 | Claude settings | `config/claude-settings.json` is merged key by key into `~/.claude/settings.json`: no attribution trailers, and hook-bypassing git commands are denied. Other keys stay as they are. |
 | Retired items | Paths in `config/retire.json` (and `~/.bell-harness/retire.local.json`) move into the backup; listed Claude plugins are uninstalled |
 
-Entries named `paseo*`, `synced` or `.system` are never touched, and setup refuses to run when `~/.claude/skills`, `~/.agents/skills` or `~/.codex/rules` is itself a symlink. Running `bin/setup` again reports `setup: nothing to do`.
+Entries named `paseo*`, `synced` or `.system` are never touched, and setup refuses to run when `~/.claude/skills`, `~/.agents/skills` or `~/.codex/rules` is itself a symlink. Setup and restore require a real backup directory path. A retirement path with a symlinked parent is reported and skipped. A retirement entry that is itself a symlink can still be moved. Running `bin/setup` again reports `setup: nothing to do`.
 
 ## Check and undo
 
 ```sh
 bin/doctor                      # PASS/WARN/FAIL per check; exit 1 on any FAIL
 bin/doctor --project ~/code/app # also check project instructions, table paths, decisions and commit messages
+bin/doctor --project-only ~/code/app # check only project files and Git history
 bin/doctor --discovery          # ask claude and codex which skills they actually load
 bin/setup --restore <id>        # undo one backup (or: all), skipping anything changed since setup
 ```
 
 If you move the harness repository, run `bin/setup` from its new location to repair the links and hooks path.
 
-Restore undoes settings key by key, so settings changed after setup survive. Uninstalled plugins are not reinstalled automatically; restore prints the `claude plugin install` command.
+Restore checks each backup manifest before undoing its actions. If a retired item's saved or destination path has a symlinked parent, restore keeps that backup available for retry after the path is fixed. It undoes settings key by key, so settings changed after setup survive. Uninstalled plugins are not reinstalled automatically; restore prints the `claude plugin install` command.
 
-Codex rules match command prefixes, and `bin/doctor --project` lists commits made around the hooks that the hooks would reject.
+Codex rules match command prefixes. Both project diagnostic modes validate recorded commit messages with the harness policy and never run Git hooks. Use `--project-only` in a checkout without a harness installation. It cannot be combined with `--discovery`.
 
 ## Skills
 
@@ -93,6 +94,8 @@ python3 evals/run.py [--host claude|codex|all] [--case <id>]... [--jobs N] [--ti
 
 Each of the 20 cases sends a fixed prompt to the real `claude` and `codex` commands in a temporary copy of a fixture repository (`evals/fixtures/`), then grades which harness skill was loaded and regular expressions over the final answer. Ten routing cases use English and Korean prompts. They cover design, spec, eval, project initialization, preflight and small edits that should load no skill. Six memory cases check that a recorded decision is applied, an unrelated task stays quiet about it, a superseded decision loses to the newer one, a missing reason is reported as missing, a Korean question retrieves the English decision and its rationale, and a single observation stays optional. Two flow cases check roadmap order and the approval request before publishing. Two away cases check skill routing when you ask what is queued or ask the agent to continue a roadmap with an approval gate. The runner calls paid models, so it is not part of `scripts/check`. Run it after installing the harness and whenever a model or an instruction changes.
 
+Each attempt needs a nonempty final answer. Codex skill evidence comes from successful completed commands that reference the installed `SKILL.md` path. Fixture Git commands and host processes run without inherited repository-local Git variables.
+
 Use `--repeat N` to run each host and case N times. A host-case pair passes when every attempt passes, and `--json` records every attempt. A case can set `max_turns` to override Claude's default of eight turns.
 
 ## Develop
@@ -100,6 +103,10 @@ Use `--repeat N` to run each host and case N times. A host-case pair passes when
 ```sh
 scripts/check   # offline tests in a temporary home, privacy scan, real-home guard
 ```
+
+The check runs discovered test suites in up to four independent processes. Use `scripts/check --jobs 1` for serial output. A suite that cannot be sent to a worker makes the check run serially. The home guard covers the entire run in either mode.
+
+The privacy scan checks the link text of Git working tree symlinks and skips paths below them. In `.privacy-allow`, use a path glob and a detection kind on each rule line. Blank lines and lines starting with `#` are comments or separators. The home guard compares the contents of regular backup manifests, including restored backups.
 
 Changes follow a spec in `docs/plans/`. See [AGENTS.md](AGENTS.md).
 

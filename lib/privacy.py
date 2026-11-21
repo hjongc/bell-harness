@@ -4,6 +4,7 @@ import os
 import subprocess
 from pathlib import Path
 
+from harness import symlinked_directory
 from patterns import EMAIL, EMAIL_ALLOW, HOME_PATHS, SECRET_PATTERNS
 
 
@@ -25,7 +26,9 @@ def repository_files(root, in_git):
     if in_git:
         for name in git_output(root, "ls-files", "-co", "--exclude-standard", "-z").split(b"\0"):
             if name:
-                yield root / os.fsdecode(name)
+                relative = Path(os.fsdecode(name))
+                if symlinked_directory(root, relative.parent) is None:
+                    yield root / relative
         return
 
     for directory, subdirs, filenames in os.walk(root):
@@ -40,6 +43,20 @@ def optional_lines(path):
         return path.read_text(encoding="utf-8").splitlines()
     except FileNotFoundError:
         return []
+
+
+def allow_rules(root):
+    allow, problems = [], []
+    for number, raw in enumerate(optional_lines(root / ".privacy-allow"), 1):
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        fields = line.rsplit(maxsplit=1)
+        if len(fields) == 2:
+            allow.append(fields)
+        else:
+            problems.append((f".privacy-allow:{number}", "expected a path glob and detection kind"))
+    return allow, problems
 
 
 def file_lines(path):
@@ -89,8 +106,7 @@ def scan(root):
         for raw in optional_lines(root / ".private-terms")
         if (line := raw.strip()) and not line.startswith("#")
     ]
-    allow = [line.rsplit(maxsplit=1) for line in optional_lines(root / ".privacy-allow") if line.strip()]
-    hits = []
+    allow, hits = allow_rules(root)
     for path in repository_files(root, in_git):
         relative = path.relative_to(root).as_posix()
         for number, line in enumerate(file_lines(path), 1):

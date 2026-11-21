@@ -174,6 +174,21 @@ class HookTests(unittest.TestCase):
         self.assert_rejected(result, f"pre-commit: possible openai-key in {name}:3\n")
         self.assertNotIn(value, result.stdout + result.stderr)
 
+    def test_staged_line_numbers_ignore_inter_hunk_context(self):
+        name = "hunk-context.txt"
+        path = self.repo / name
+        path.write_text("before\n\nseparator\nlast\n", encoding="utf-8")
+        self.assert_success(self.git("add", "--", name))
+        self.assert_success(self.commit("test: initialize the hunk fixture"))
+        self.assert_success(self.git("config", "diff.interHunkContext", "10"))
+        self.assert_success(self.git("config", "diff.suppressBlankEmpty", "true"))
+        value = "sk-" + "proj-" + "a" * 32
+        path.write_text(f"after\n\nseparator\n{value}\n", encoding="utf-8")
+        self.assert_success(self.git("add", "--", name))
+        result = self.commit("test: inspect staged line numbers")
+        self.assert_rejected(result, f"pre-commit: possible openai-key in {name}:4\n")
+        self.assertNotIn(value, result.stdout + result.stderr)
+
     def test_chains_repository_hooks_on_pass(self):
         before = self.marker_hook("pre-commit", 'touch "$0.marker"')
         prepare = self.marker_hook("prepare-commit-msg", 'printf "%s\n" "$2" > "$0.marker"')

@@ -77,6 +77,24 @@ class DoctorTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stdout)
         self.assertIn("setup: nothing to do", result.stdout)
 
+    def test_previous_root_stale_link_matches_setup(self):
+        fx = self.fx
+        old = fx.harness
+        fx.harness = old.rename(old.with_name("moved"))
+        repaired = fx.run("setup")
+        self.assertEqual(repaired.returncode, 0, repaired.stdout)
+        link = fx.home / ".agents/skills/obsolete"
+        link.symlink_to(old / "skills/obsolete")
+        (link.parent / "foreign").mkdir()
+
+        setup = fx.run("setup", "--dry-run")
+        self.assertIn("would unlink ~/.agents/skills/obsolete", setup.stdout)
+        result = self.doctor()
+        self.assertEqual(result.returncode, 1, result.stdout)
+        self.assertIn("FAIL stale link: ~/.agents/skills/obsolete", result.stdout)
+        self.assertIn("WARN unmanaged skills: ~/.agents/skills/foreign\n", result.stdout)
+        self.assertTrue(link.is_symlink())
+
     def test_broken_link_fails(self):
         os.unlink(str(self.fx.home / ".claude/skills/probe"))
         result = self.doctor()
@@ -202,6 +220,51 @@ class DoctorTests(unittest.TestCase):
         fx.git("commit", "-q", "-m", "refactor: remove the helper", cwd=project)
         result = self.doctor("--project", str(project))
         self.assertIn("WARN table check: since {}: removed under a row: helper.py".format(parent), result.stdout)
+
+    def test_project_checks_commit_messages_without_running_local_hook(self):
+        fx = self.fx
+        project = fx.tmp / "project-only"
+        init_repo(project, fx.env)
+        fx.git("config", "--global", "core.hooksPath", str(fx.harness / "git/hooks"))
+        fx.git("commit", "--allow-empty", "-qm", "bad message", "--no-verify", cwd=project)
+        bad = fx.git("rev-parse", "--short=7", "HEAD", cwd=project).strip()
+        fx.git("commit", "--allow-empty", "-qm", "test: seed a valid message", cwd=project)
+        marker = project / ".git/doctor-hook-ran"
+        hook = marker.parent / "hooks/commit-msg"
+        hook.write_text("#!/bin/sh\ntouch .git/doctor-hook-ran\n", encoding="utf-8")
+        hook.chmod(0o755)
+
+        result = self.doctor("--project", str(project))
+        self.assertEqual(result.returncode, 0, result.stdout)
+        self.assertIn("rejected by the harness hook: " + bad, result.stdout)
+        self.assertFalse(marker.exists())
+
+        (fx.home / ".codex/AGENTS.md").unlink()
+        result = self.doctor("--project-only", str(project))
+        self.assertEqual(result.returncode, 0, result.stdout)
+        self.assertIn("rejected by the harness hook: " + bad, result.stdout)
+        for prefix in ("PASS prerequisite:", "FAIL link:", "PASS codex mcp:"):
+            self.assertNotIn(prefix, result.stdout)
+        self.assertFalse(marker.exists())
+
+        result = self.doctor("--project-only", str(project), "--discovery")
+        self.assertEqual(result.returncode, 2, result.stdout)
+
+    def test_commit_audit_uses_committed_config_bytes(self):
+        fx = self.fx
+        project = fx.tmp / "committed-config"
+        init_repo(project, fx.env)
+        fx.git("config", "--global", "core.hooksPath", str(fx.harness / "git/hooks"))
+        config = project / ".harness.json"
+        config.write_bytes('{"commit":{"allow_hangul":true}}'.encode("utf-16"))
+        fx.git("add", ".harness.json", cwd=project)
+        fx.git("commit", "-qm", "test: configure fixture", cwd=project)
+        fx.git("commit", "--allow-empty", "-qm", "test: 한글 메시지", cwd=project)
+        config.write_text('{"commit":{"allow_hangul":false}}', encoding="utf-8")
+
+        result = self.doctor("--project-only", str(project))
+        self.assertEqual(result.returncode, 0, result.stdout)
+        self.assertIn("PASS commit messages: recent commits follow the rules", result.stdout)
 
     def test_missing_project_directory_fails(self):
         result = self.doctor("--project", str(self.fx.tmp / "nope"))

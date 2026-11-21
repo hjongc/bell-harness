@@ -42,6 +42,16 @@ def inside(path, root):
         return False
 
 
+def symlinked_directory(root, relative):
+    """Find the first symlink in a relative directory path below root."""
+    parent = Path(root)
+    for part in Path(relative).parts:
+        parent /= part
+        if parent.is_symlink():
+            return parent
+    return None
+
+
 def exists(path):
     """True for anything at path, including a dangling symlink."""
     return os.path.lexists(str(path))
@@ -135,8 +145,8 @@ def stale_links(root, home, old_roots=()):
     return [e for e in skill_entries(home) if e.name not in names and is_managed(e, root, old_roots)]
 
 
-def unmanaged_skills(root, home):
-    return [e for e in skill_entries(home) if not is_managed(e, root)]
+def unmanaged_skills(root, home, old_roots=()):
+    return [e for e in skill_entries(home) if not is_managed(e, root, old_roots)]
 
 
 def load_json(path, default=None):
@@ -164,7 +174,11 @@ def retire_config(root, home):
     local = load_json(Path(home) / ".bell-harness/retire.local.json", {}) or {}
     paths, plugins = [], []
     for source in (config, local):
-        paths += [p for p in source.get("paths", []) if p not in paths and safe_relative(p)]
+        for item in source.get("paths", []):
+            if safe_relative(item):
+                path = Path(item).as_posix()
+                if path not in paths:
+                    paths.append(path)
         plugins += [p for p in source.get("claude_plugins", []) if p not in plugins]
     # Drop a path that lies inside another retired path; moving the parent covers it.
     paths = [p for p in paths if not any(p != q and inside(p, q) for q in paths)]

@@ -13,3 +13,7 @@ Specs in the order they run. An unchecked item starts without asking when its sp
 - [x] v1.3-away: away skill and a ceiling on global rules
 - [x] v1.4-memory-recall: check active citations and exercise bilingual recall and decision authority
 - [x] v1.5-audit-fixes: decisions and fixes from the audit backlog
+- [x] v1.6-regression-loops: six diagnosis, fix and verification rounds
+- [x] v1.7-path-boundaries: five filesystem and verifier audit rounds
+- [x] v1.8-check-speed: run the offline check in isolated parallel workers
+- [x] v1.9-project-doctor: read-only project diagnostics and batched commit validation

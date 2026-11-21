@@ -315,6 +315,35 @@ class SetupTests(unittest.TestCase):
         self.assertEqual(tree_snapshot(fx.home), installed)
         self.assertEqual(fx.backups(), [backup_id])
 
+    def assert_damaged_manifest_leaves_install_unchanged(self, action, field):
+        fx = self.fx
+        self.assertEqual(fx.run("setup").returncode, 0)
+        backup_id = fx.backups()[0]
+        manifest = fx.home / ".bell-harness/backups" / backup_id / "manifest.jsonl"
+        entries = [json.loads(line) for line in manifest.read_text().splitlines()]
+        damaged = next(entry for entry in entries if entry["action"] == action)
+        if action == "settings":
+            damaged = damaged["previous"][0]
+        del damaged[field]
+        manifest.write_text("".join(json.dumps(entry) + "\n" for entry in entries))
+
+        installed = tree_snapshot(fx.home)
+        settings = (fx.home / ".claude/settings.json").read_bytes()
+        hooks = Path(fx.env["GIT_CONFIG_GLOBAL"]).read_bytes()
+        result = fx.run("setup", "--restore", backup_id)
+        self.assertEqual(result.returncode, 2, result.stdout)
+        self.assertIn("nothing was undone", result.stdout)
+        self.assertEqual(tree_snapshot(fx.home), installed)
+        self.assertEqual((fx.home / ".claude/settings.json").read_bytes(), settings)
+        self.assertEqual(Path(fx.env["GIT_CONFIG_GLOBAL"]).read_bytes(), hooks)
+        self.assertEqual(fx.backups(), [backup_id])
+
+    def test_restore_rejects_an_incomplete_link_record(self):
+        self.assert_damaged_manifest_leaves_install_unchanged("link", "target")
+
+    def test_restore_rejects_an_incomplete_settings_record(self):
+        self.assert_damaged_manifest_leaves_install_unchanged("settings", "key")
+
     def test_restore_survives_invalid_settings(self):
         fx = self.fx
         self.assertEqual(fx.run("setup").returncode, 0)
@@ -375,6 +404,108 @@ class SetupTests(unittest.TestCase):
         result = other.run("setup")
         self.assertEqual(result.returncode, 2, result.stdout)
         self.assertIn("is a symlink", result.stdout)
+
+    def test_retirement_skips_symlinked_parent_but_moves_a_leaf_link(self):
+        fx = self.fx
+        outside = fx.tmp / "outside"
+        outside.mkdir()
+        external = outside / "record.txt"
+        external.write_text("external\n", encoding="utf-8")
+        linked_folder = fx.home / ".claude/commands/linked"
+        linked_folder.symlink_to(outside)
+        leaf = linked_folder.with_name("leaf")
+        leaf.symlink_to(external)
+        config = fx.home / ".bell-harness/retire.local.json"
+        config.parent.mkdir(exist_ok=True)
+        config.write_text(json.dumps({"paths": [
+            ".claude/commands/linked/record.txt", ".claude/commands/leaf",
+        ]}), encoding="utf-8")
+
+        dry = fx.run("setup", "--dry-run")
+        self.assertEqual(dry.returncode, 0, dry.stdout)
+        self.assertIn("skipped ~/.claude/commands/linked/record.txt", dry.stdout)
+        self.assertNotIn("would retire ~/.claude/commands/linked/record.txt", dry.stdout)
+        installed = fx.run("setup")
+        self.assertEqual(installed.returncode, 0, installed.stdout)
+        self.assertIn("skipped ~/.claude/commands/linked/record.txt", installed.stdout)
+        self.assertIn("WARN retired: ~/.claude/commands/linked/record.txt", installed.stdout)
+        self.assertEqual(external.read_text(encoding="utf-8"), "external\n")
+        self.assertFalse(leaf.is_symlink())
+
+        restored = fx.run("setup", "--restore", fx.backups()[0])
+        self.assertEqual(restored.returncode, 0, restored.stdout)
+        self.assertEqual(leaf.readlink(), external)
+
+    def test_restore_keeps_backup_when_retirement_parent_is_now_a_symlink(self):
+        fx = self.fx
+        self.assertEqual(fx.run("setup").returncode, 0)
+        backup = fx.backups()[0]
+        commands = fx.home / ".claude/commands"
+        commands.rmdir()
+        outside = fx.tmp / "outside"
+        outside.mkdir()
+        commands.symlink_to(outside)
+        settings = (fx.home / ".claude/settings.json").read_bytes()
+        git_config = Path(fx.env["GIT_CONFIG_GLOBAL"]).read_bytes()
+
+        for args in (("--dry-run",), ()):
+            result = fx.run("setup", "--restore", backup, *args)
+            self.assertEqual(result.returncode, 2, result.stdout)
+            self.assertIn("symlinked parent", result.stdout)
+            self.assertEqual(list(outside.iterdir()), [])
+            self.assertEqual(fx.backups(), [backup])
+            self.assertEqual((fx.home / ".claude/settings.json").read_bytes(), settings)
+            self.assertEqual(Path(fx.env["GIT_CONFIG_GLOBAL"]).read_bytes(), git_config)
+
+        commands.unlink()
+        saved = fx.home / ".bell-harness/backups" / backup / "home/.claude/commands"
+        moved = saved.rename(fx.tmp / "saved-commands")
+        saved.symlink_to(moved)
+        result = fx.run("setup", "--restore", backup)
+        self.assertEqual(result.returncode, 2, result.stdout)
+        self.assertIn("symlinked parent", result.stdout)
+        self.assertTrue((moved / "pre-push-check.md").is_file())
+        self.assertEqual(fx.backups(), [backup])
+        saved.unlink()
+        moved.rename(saved)
+        self.assertEqual(fx.run("setup", "--restore", backup).returncode, 0)
+        self.assertTrue((commands / "pre-push-check.md").is_file())
+
+    def test_setup_and_restore_reject_a_linked_backup_directory(self):
+        fx = self.fx
+        outside = fx.tmp / "outside-backups"
+        outside.mkdir()
+        backups = fx.home / ".bell-harness/backups"
+        backups.parent.mkdir(exist_ok=True)
+        backups.symlink_to(outside)
+        before = tree_snapshot(fx.home)
+
+        for args in (("--dry-run",), (), ("--restore", "all")):
+            with self.subTest(args=args):
+                result = fx.run("setup", *args)
+                self.assertEqual(result.returncode, 2, result.stdout)
+                self.assertIn("backup directory", result.stdout)
+                self.assertIn("symlink", result.stdout)
+                self.assertEqual(list(outside.iterdir()), [])
+                self.assertEqual(tree_snapshot(fx.home), before)
+
+    def test_retirement_deduplicates_equivalent_paths(self):
+        fx = self.fx
+        item = ".claude/commands/pre-push-check.md"
+        config = fx.home / ".bell-harness/retire.local.json"
+        config.parent.mkdir(exist_ok=True)
+        config.write_text(json.dumps({"paths": [
+            ".claude/commands/./pre-push-check.md", item,
+        ]}), encoding="utf-8")
+
+        dry = fx.run("setup", "--dry-run")
+        self.assertEqual(dry.returncode, 0, dry.stdout)
+        self.assertEqual(dry.stdout.count("would retire ~/" + item + " ("), 1)
+        installed = fx.run("setup")
+        self.assertEqual(installed.returncode, 0, installed.stdout)
+        self.assertFalse((fx.home / item).exists())
+        backup = fx.home / ".bell-harness/backups" / fx.backups()[0]
+        self.assertTrue((backup / "home" / item).is_file())
 
     def test_restore_all_orders_numbered_backups(self):
         loader = importlib.machinery.SourceFileLoader("harness_setup", str(ROOT / "bin/setup"))

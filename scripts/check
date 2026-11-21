@@ -1,10 +1,16 @@
 #!/usr/bin/env python3
+import argparse
 import hashlib
+import io
+import multiprocessing
 import os
+import pickle
 import stat
 import subprocess
 import sys
+import time
 import unittest
+from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 
 
@@ -31,11 +37,38 @@ def file_hash(path):
         return "missing"
 
 
+def manifest_snapshot(path):
+    try:
+        kind = stat.S_IFMT(path.lstat().st_mode)
+    except (FileNotFoundError, NotADirectoryError):
+        return None
+    if kind == stat.S_IFREG:
+        return kind, file_hash(path)
+    if kind == stat.S_IFLNK:
+        return kind, os.readlink(path)
+    return kind, None
+
+
+def backup_snapshot(path):
+    for directory in (path.parent, path):
+        if directory.is_symlink():
+            return (directory.name, os.readlink(directory))
+    entries = directory_snapshot(path)
+    if not isinstance(entries, list):
+        return entries
+    manifests = {
+        name: manifest_snapshot(path / name / "manifest.jsonl")
+        for name, kind, _ in entries
+        if kind == stat.S_IFDIR
+    }
+    return entries, manifests
+
+
 def snapshot_home(home):
     snapshot = {}
-    for name in (".claude/skills", ".agents/skills", ".codex/skills", ".codex/rules", ".claude/commands",
-                 ".bell-harness/backups"):
+    for name in (".claude/skills", ".agents/skills", ".codex/skills", ".codex/rules", ".claude/commands"):
         snapshot[name] = directory_snapshot(home / name)
+    snapshot[".bell-harness/backups"] = backup_snapshot(home / ".bell-harness/backups")
     for name in (".claude/settings.json", ".claude/CLAUDE.md", ".codex/AGENTS.md", ".codex/config.toml"):
         snapshot[name] = file_hash(home / name)
     command = ["git", "config", "--global", "--get", "core.hooksPath"]
@@ -46,21 +79,65 @@ def snapshot_home(home):
     return snapshot
 
 
+def disable_bytecode():
+    sys.dont_write_bytecode = True
+
+
+def run_suite(payload):
+    suite = pickle.loads(payload)
+    stream = io.StringIO()
+    result = unittest.TextTestRunner(stream=stream, verbosity=2).run(suite)
+    return result.testsRun, result.wasSuccessful(), stream.getvalue()
+
+
+def run_tests(suite, jobs):
+    groups = list(suite)
+    jobs = min(jobs, len(groups))
+    if jobs <= 1:
+        return unittest.TextTestRunner(verbosity=2).run(suite).wasSuccessful()
+    try:
+        payloads = [pickle.dumps(group) for group in groups]
+    except (pickle.PickleError, AttributeError, TypeError):
+        print("CHECK: a test suite cannot be sent to a worker. Running serially.", file=sys.stderr)
+        return unittest.TextTestRunner(verbosity=2).run(suite).wasSuccessful()
+
+    start = time.perf_counter()
+    count = 0
+    passed = True
+    ctx = multiprocessing.get_context("spawn")
+    with ProcessPoolExecutor(max_workers=jobs, mp_context=ctx, initializer=disable_bytecode) as pool:
+        for tests, ok, output in pool.map(run_suite, payloads):
+            sys.stderr.write(output)
+            count += tests
+            passed = passed and ok
+    print(f"Ran {count} tests in {time.perf_counter() - start:.3f}s ({jobs} workers)", file=sys.stderr)
+    print("OK" if passed else "FAILED", file=sys.stderr)
+    return passed
+
+
 def main():
+    parser = argparse.ArgumentParser(description="Run offline tests and verify that the real home did not change.")
+    parser.add_argument("--jobs", type=int, default=min(4, os.cpu_count() or 1),
+                        help="maximum worker processes (1 runs serially)")
+    args = parser.parse_args()
+    if args.jobs < 1:
+        parser.error("--jobs must be at least 1")
+
     home = Path(os.path.expanduser("~"))
     before = snapshot_home(home)
-    sys.dont_write_bytecode = True
-    tests = str(Path(__file__).resolve().parents[1] / "tests")
-    suite = unittest.defaultTestLoader.discover(tests, top_level_dir=tests)
-    result = unittest.TextTestRunner(verbosity=2).run(suite)
-
-    after = snapshot_home(home)
-    changed = [name for name in before if before[name] != after[name]]
-    for name in changed:
-        print(f"GUARD: changed {name}")
-    if not changed:
-        print("GUARD: real home unchanged")
-    return 0 if result.wasSuccessful() and not changed else 1
+    try:
+        disable_bytecode()
+        tests = str(Path(__file__).resolve().parents[1] / "tests")
+        suite = unittest.defaultTestLoader.discover(tests, top_level_dir=tests)
+        passed = run_tests(suite, args.jobs)
+    finally:
+        after = snapshot_home(home)
+        changed = [name for name in before if before[name] != after[name]]
+        for name in changed:
+            print(f"GUARD: changed {name}")
+        if not changed:
+            print("GUARD: real home unchanged")
+    return 0 if passed and not changed else 1
 
 
 if __name__ == "__main__":

@@ -2,6 +2,7 @@
 """Report whether this machine (and optionally a project) matches bell-harness.
 
 Usage: bin/doctor [--project <path>] [--discovery]
+       bin/doctor --project-only <path>
 Prints one `PASS|WARN|FAIL <check>: <detail>` line per check; exits 1 when any line is FAIL.
 """
 import argparse
@@ -17,6 +18,7 @@ from pathlib import Path
 sys.dont_write_bytecode = True
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "lib"))
+import commit_message  # noqa: E402
 import decisions  # noqa: E402
 import harness as h  # noqa: E402
 
@@ -40,10 +42,10 @@ class Report(object):
         print(h.tilde("{} {}: {}".format(status, check, detail), self.home))
 
 
-def run(command, cwd=None, timeout=60):
+def run(command, cwd=None, timeout=60, stderr=subprocess.STDOUT, binary=False):
     try:
-        result = subprocess.run(command, cwd=cwd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                                stdin=subprocess.DEVNULL, universal_newlines=True, timeout=timeout)
+        result = subprocess.run(command, cwd=cwd, stdout=subprocess.PIPE, stderr=stderr,
+                                stdin=subprocess.DEVNULL, text=not binary, timeout=timeout)
     except (OSError, subprocess.TimeoutExpired) as error:
         return 1, str(error)
     return result.returncode, result.stdout
@@ -66,13 +68,13 @@ def check_prerequisites(report):
             report.line("WARN", "host", "{} not found on PATH".format(tool))
 
 
-def check_install(report, home):
+def check_install(report, home, old_roots):
     for link, target in h.desired_links(ROOT, home):
         if h.link_target(link) == target:
             report.line("PASS", "link", str(link))
         else:
             report.line("FAIL", "link", "{} does not point to {} (run {}/bin/setup)".format(link, target, ROOT))
-    for entry in h.stale_links(ROOT, home):
+    for entry in h.stale_links(ROOT, home, old_roots):
         report.line("FAIL", "stale link", "{} points to a removed skill (run {}/bin/setup)".format(entry, ROOT))
     claude_md = home / h.CLAUDE_MD
     if h.claude_md_ok(ROOT, home):
@@ -98,17 +100,23 @@ def check_install(report, home):
     return settings
 
 
-def check_leftovers(report, home, settings):
+def check_leftovers(report, home, settings, old_roots):
     paths, plugins = h.retire_config(ROOT, home)
-    leftovers = [p for p in paths if h.exists(home / p) and not h.is_managed(home / p, ROOT)]
-    for item in leftovers:
-        report.line("WARN", "retired", "{} is still present (run {}/bin/setup)".format(home / item, ROOT))
+    leftovers = False
+    for item in paths:
+        parent = h.symlinked_directory(home, Path(item).parent)
+        if parent is not None:
+            report.line("WARN", "retired", "{} is skipped (symlinked parent {})".format(home / item, parent))
+            leftovers = True
+        elif h.exists(home / item) and not h.is_managed(home / item, ROOT, old_roots):
+            report.line("WARN", "retired", "{} is still present (run {}/bin/setup)".format(home / item, ROOT))
+            leftovers = True
     enabled = [p for p in plugins if p in h.enabled_plugins(settings)]
     for plugin in enabled:
         report.line("WARN", "retired plugin", "{} is enabled (run {}/bin/setup)".format(plugin, ROOT))
     if not leftovers and not enabled:
         report.line("PASS", "retired", "no retired item present")
-    unmanaged = h.unmanaged_skills(ROOT, home)
+    unmanaged = h.unmanaged_skills(ROOT, home, old_roots)
     if unmanaged:
         report.line("WARN", "unmanaged skills", ", ".join(str(e) for e in unmanaged))
     else:
@@ -184,11 +192,13 @@ def check_sources_table(report, project, lines):
         report.line("WARN", "table check", "unknown commit " + sha)
         return
     # The commit that wrote this marker usually also updated table paths; count changes after it.
-    code, marker = run(git + ["log", "-1", "--format=%H", "-S", "Checked at " + sha, "--", "AGENTS.md"])
+    code, marker = run(git + ["log", "-1", "--no-show-signature", "--no-ext-diff", "--no-textconv",
+                              "--format=%H", "-S", "Checked at " + sha, "--", "AGENTS.md"])
     base = marker.strip() if code == 0 and marker.strip() else commit.strip()
     # Ordinary edits under a row do not make the table stale; removed or renamed files under a row,
     # and new top-level folders that no row covers, do.
-    code, output = run(git + ["diff", "--name-status", "--no-renames", "-z", base + "..HEAD"])
+    code, output = run(git + ["diff", "--no-ext-diff", "--no-textconv", "--name-status",
+                              "--no-renames", "-z", base + "..HEAD"])
     if code != 0:
         report.line("WARN", "table check", "could not compare HEAD with " + sha)
         return
@@ -269,24 +279,31 @@ def check_project(report, project):
 
 
 def check_commits(report, project):
-    code, _ = run(["git", "-C", str(project), "rev-parse", "--verify", "-q", "HEAD"])
+    git = ["git", "-C", str(project)]
+    code, _ = run(git + ["rev-parse", "--verify", "-q", "HEAD"])
     if code != 0:
         return
-    code, _ = run(["git", "-C", str(project), "rev-parse", "--abbrev-ref", "@{u}"])
-    if code == 0:
-        command = ["git", "-C", str(project), "rev-list", "@{u}..HEAD"]
-    else:
-        command = ["git", "-C", str(project), "rev-list", "-n", "20", "HEAD"]
-    code, output = run(command)
+    code, _ = run(git + ["rev-parse", "--abbrev-ref", "@{u}"])
+    revs = ["@{u}..HEAD"] if code == 0 else ["-n", "20", "HEAD"]
+    log = ["log", "--no-show-signature", "--no-notes", "--no-decorate",
+           "--encoding=UTF-8", "--format=%H%x00%B", "-z"]
+    code, output = run(git + log + revs, stderr=subprocess.DEVNULL, binary=True)
+    if code != 0:
+        report.line("WARN", "commit messages", "could not read recent commits")
+        return
+    if not output:
+        report.line("PASS", "commit messages", "recent commits follow the rules")
+        return
+
+    code, config = run(git + ["show", "HEAD:.harness.json"], stderr=subprocess.DEVNULL, binary=True)
+    policy = commit_message.read_policy(config if code == 0 else None)
+    _, comment = run(git + ["config", "--get", "core.commentChar"], stderr=subprocess.DEVNULL)
+    fields = output.decode("utf-8", errors="replace").split("\0")
     rejected = []
-    with tempfile.TemporaryDirectory() as folder:
-        message = Path(folder) / "COMMIT_EDITMSG"
-        for sha in output.split():
-            _, body = run(["git", "-C", str(project), "log", "-1", "--format=%B", sha])
-            message.write_text(body, encoding="utf-8")
-            status, _ = run([str(HOOKS / "commit-msg"), str(message)], cwd=str(project))
-            if status != 0:
-                rejected.append(sha[:7])
+    for sha, body in zip(fields[0::2], fields[1::2]):
+        message = commit_message.clean_message(body, comment.rstrip("\n"))
+        if commit_message.rejection(message, commit_message.subject_of(message), policy):
+            rejected.append(sha[:7])
     if rejected:
         report.line("WARN", "commit messages", "rejected by the harness hook: {}".format(" ".join(rejected)))
     else:
@@ -363,14 +380,25 @@ def check_discovery(report, home):
 
 def main():
     parser = argparse.ArgumentParser(prog="doctor", description="Check this machine against bell-harness.")
-    parser.add_argument("--project", metavar="PATH", help="also check a project repository")
+    project = parser.add_mutually_exclusive_group()
+    project.add_argument("--project", metavar="PATH", help="also check a project repository")
+    project.add_argument("--project-only", metavar="PATH", help="check the project without machine checks")
     parser.add_argument("--discovery", action="store_true", help="ask claude and codex which skills they load")
     args = parser.parse_args()
     home = h.home_dir()
     report = Report(home)
+    if args.project_only is not None:
+        if args.discovery:
+            parser.error("--project-only cannot be combined with --discovery")
+        if not h.which("git"):
+            report.line("FAIL", "prerequisite", "git")
+            return 1
+        check_project(report, Path(args.project_only).resolve())
+        return 1 if report.failed else 0
     check_prerequisites(report)
-    settings = check_install(report, home)
-    check_leftovers(report, home, settings)
+    old_roots = set(h.previous_roots(home))
+    settings = check_install(report, home, old_roots)
+    check_leftovers(report, home, settings, old_roots)
     if args.project:
         check_project(report, Path(args.project).resolve())
     if args.discovery:

@@ -44,7 +44,7 @@ def target_path(header):
 def added_lines():
     diff = subprocess.check_output(
         [
-            "git", "-c", "core.quotePath=false", "diff", "--cached", "-U0", "--no-color",
+            "git", "-c", "core.quotePath=false", "diff", "--cached", "-U0", "--inter-hunk-context=0", "--no-color",
             "--no-ext-diff", "--no-textconv", "--src-prefix=a/", "--dst-prefix=b/",
         ]
     )
