@@ -16,11 +16,13 @@ class DoctorTests(unittest.TestCase):
     def setUp(self):
         self.tmpdir = tempfile.TemporaryDirectory()
         self.fx = Fixture(self.tmpdir.name)
-        result = self.fx.run("setup")
-        self.assertEqual(result.returncode, 0, result.stdout)
 
     def tearDown(self):
         self.tmpdir.cleanup()
+
+    def install_harness(self):
+        result = self.fx.run("setup")
+        self.assertEqual(result.returncode, 0, result.stdout)
 
     def doctor(self, *args):
         result = self.fx.run("doctor", *args)
@@ -31,6 +33,7 @@ class DoctorTests(unittest.TestCase):
         return [line for line in result.stdout.splitlines() if line.startswith(status + " ")]
 
     def test_installed_machine_passes(self):
+        self.install_harness()
         result = self.doctor()
         self.assertEqual(result.returncode, 0, result.stdout)
         self.assertEqual(self.lines(result, "FAIL"), [])
@@ -38,6 +41,7 @@ class DoctorTests(unittest.TestCase):
             self.assertRegex(line, r"^(PASS|WARN|FAIL) [^:]+: ")
 
     def test_setup_repairs_a_moved_installation(self):
+        self.install_harness()
         fx = self.fx
         old = fx.harness
         moved = old.with_name("moved")
@@ -79,6 +83,7 @@ class DoctorTests(unittest.TestCase):
         self.assertIn("setup: nothing to do", result.stdout)
 
     def test_previous_root_stale_link_matches_setup(self):
+        self.install_harness()
         fx = self.fx
         old = fx.harness
         fx.harness = old.rename(old.with_name("moved"))
@@ -97,6 +102,7 @@ class DoctorTests(unittest.TestCase):
         self.assertTrue(link.is_symlink())
 
     def test_earlier_roots_skip_unsafe_manifests(self):
+        self.install_harness()
         fx = self.fx
         backups = fx.home / ".bell-harness/backups"
         outside = fx.tmp / "outside-backup"
@@ -135,6 +141,7 @@ class DoctorTests(unittest.TestCase):
         self.assertNotIn("stale link:", result.stdout)
 
     def test_broken_link_fails(self):
+        self.install_harness()
         os.unlink(str(self.fx.home / ".claude/skills/probe"))
         result = self.doctor()
         self.assertEqual(result.returncode, 1, result.stdout)
@@ -142,6 +149,7 @@ class DoctorTests(unittest.TestCase):
                         result.stdout)
 
     def test_leftovers_warn(self):
+        self.install_harness()
         retired = self.fx.home / ".codex/skills/chronicle"
         retired.mkdir(parents=True)
         config = self.fx.home / ".codex/config.toml"
@@ -176,7 +184,7 @@ class DoctorTests(unittest.TestCase):
         checked_at = fx.git("rev-parse", "--short", "HEAD", cwd=project).strip()
         agents.write_text(template.replace("<short commit>", checked_at), encoding="utf-8")
 
-        result = self.doctor("--project", str(project))
+        result = self.doctor("--project-only", str(project))
         self.assertEqual(self.lines(result, "FAIL"), [], result.stdout)
         project_warnings = [line for line in self.lines(result, "WARN")
                             if line.startswith(("WARN project", "WARN stale", "WARN commit", "WARN table"))
@@ -187,25 +195,25 @@ class DoctorTests(unittest.TestCase):
         (project / "docs/plans/second.md").write_text("# Second\n", encoding="utf-8")
         fx.git("add", "docs/plans/second.md", cwd=project)
         fx.git("commit", "-q", "-m", "docs: add the second plan", cwd=project)
-        result = self.doctor("--project", str(project))
+        result = self.doctor("--project-only", str(project))
         self.assertIn("PASS table check: table still matches the tree since " + checked_at, result.stdout)
         (project / "docs/notes").mkdir()
         (project / "docs/notes/a.md").write_text("", encoding="utf-8")
         fx.git("add", "docs/notes", cwd=project)
         fx.git("commit", "-q", "-m", "docs: add notes", cwd=project)
-        result = self.doctor("--project", str(project))
+        result = self.doctor("--project-only", str(project))
         self.assertIn("PASS table check", result.stdout)
         (project / "plugins/a").mkdir(parents=True)
         (project / "plugins/a/main.py").write_text("", encoding="utf-8")
         fx.git("add", "plugins", cwd=project)
         fx.git("commit", "-q", "-m", "feat: add a plugin", cwd=project)
-        result = self.doctor("--project", str(project))
+        result = self.doctor("--project-only", str(project))
         self.assertIn("PASS table check", result.stdout)
         (project / "newarea").mkdir()
         (project / "newarea/tool.py").write_text("", encoding="utf-8")
         fx.git("add", "newarea", cwd=project)
         fx.git("commit", "-q", "-m", "feat: add a new area", cwd=project)
-        result = self.doctor("--project", str(project))
+        result = self.doctor("--project-only", str(project))
         self.assertIn("WARN table check: since {}: new folder without a row: newarea; rerun the map skill".format(
             checked_at), result.stdout)
 
@@ -213,7 +221,7 @@ class DoctorTests(unittest.TestCase):
         fx.git("add", "-A", cwd=project)
         fx.git("commit", "-q", "--no-verify", "-m", "bad message", cwd=project)
         sha = fx.git("rev-parse", "--short=7", "HEAD", cwd=project).strip()
-        result = self.doctor("--project", str(project))
+        result = self.doctor("--project-only", str(project))
         self.assertEqual(self.lines(result, "FAIL"), [], result.stdout)
         warnings = "\n".join(self.lines(result, "WARN"))
         self.assertIn("commit messages: rejected by the harness hook: " + sha, warnings)
@@ -223,12 +231,12 @@ class DoctorTests(unittest.TestCase):
 
         agents.write_text(template.replace("<short commit>", "deadbee"), encoding="utf-8")
         self.assertIn("WARN table check: unknown commit deadbee",
-                      self.doctor("--project", str(project)).stdout)
+                      self.doctor("--project-only", str(project)).stdout)
         agents.write_text(template.replace("Checked at <short commit>\n", ""), encoding="utf-8")
         self.assertIn("WARN table check: no Checked at line (run the map skill)",
-                      self.doctor("--project", str(project)).stdout)
+                      self.doctor("--project-only", str(project)).stdout)
         agents.unlink()
-        result = self.doctor("--project", str(project))
+        result = self.doctor("--project-only", str(project))
         self.assertNotIn("table check:", result.stdout)
         self.assertNotIn("stale table:", result.stdout)
 
@@ -249,18 +257,19 @@ class DoctorTests(unittest.TestCase):
         (project / "AGENTS.md").write_text(template.replace("<short commit>", parent), encoding="utf-8")
         fx.git("add", "-A", cwd=project)
         fx.git("commit", "-q", "-m", "docs: refresh the agents table", cwd=project)
-        result = self.doctor("--project", str(project))
+        result = self.doctor("--project-only", str(project))
         self.assertIn("PASS table check: table still matches the tree since " + parent, result.stdout)
         (project / "helper.py").write_text("a = 3\n", encoding="utf-8")
         fx.git("commit", "-q", "-am", "fix: change the helper", cwd=project)
-        result = self.doctor("--project", str(project))
+        result = self.doctor("--project-only", str(project))
         self.assertIn("PASS table check: table still matches the tree since " + parent, result.stdout)
         fx.git("rm", "-q", "helper.py", cwd=project)
         fx.git("commit", "-q", "-m", "refactor: remove the helper", cwd=project)
-        result = self.doctor("--project", str(project))
+        result = self.doctor("--project-only", str(project))
         self.assertIn("WARN table check: since {}: removed under a row: helper.py".format(parent), result.stdout)
 
     def test_project_checks_commit_messages_without_running_local_hook(self):
+        self.install_harness()
         fx = self.fx
         project = fx.tmp / "project-only"
         init_repo(project, fx.env)
@@ -306,7 +315,7 @@ class DoctorTests(unittest.TestCase):
         self.assertIn("PASS commit messages: recent commits follow the rules", result.stdout)
 
     def test_missing_project_directory_fails(self):
-        result = self.doctor("--project", str(self.fx.tmp / "nope"))
+        result = self.doctor("--project-only", str(self.fx.tmp / "nope"))
         self.assertEqual(result.returncode, 1, result.stdout)
         self.assertIn("FAIL project:", result.stdout)
         self.assertIn("is not a directory", result.stdout)
@@ -319,7 +328,7 @@ class DoctorTests(unittest.TestCase):
         plans = project / "docs/plans"
         plans.mkdir(parents=True)
         (plans / "old.md").write_text("## DECIDED\n- D1 (date). Old record\n", encoding="utf-8")
-        result = self.doctor("--project", str(project))
+        result = self.doctor("--project-only", str(project))
         self.assertEqual(result.returncode, 0, result.stdout)
         self.assertIn('WARN legacy decisions: docs/plans/old.md has 1 decision-like line(s) '
                       'outside "## Decisions" (run the map skill to migrate)', result.stdout)
@@ -333,11 +342,12 @@ class DoctorTests(unittest.TestCase):
                                            encoding="utf-8")
         fx.git("add", "-A", cwd=project)
         fx.git("commit", "-q", "-m", "docs: add the agents file", cwd=project)
-        result = self.doctor("--project", str(project))
+        result = self.doctor("--project-only", str(project))
         self.assertIn("WARN project AGENTS.md:", result.stdout)
         self.assertIn("template placeholder(s) not filled in", result.stdout)
 
     def test_discovery(self):
+        self.install_harness()
         result = self.doctor("--discovery")
         self.assertEqual(result.returncode, 0, result.stdout)
         self.assertIn("PASS claude discovery", result.stdout)
@@ -355,6 +365,7 @@ class DoctorTests(unittest.TestCase):
 
 
     def test_missing_git_is_reported_not_raised(self):
+        self.install_harness()
         only = self.fx.tmp / "only-python"
         only.mkdir()
         os.symlink("/usr/bin/python3", str(only / "python3"))
