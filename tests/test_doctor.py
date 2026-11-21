@@ -67,7 +67,7 @@ class DoctorTests(unittest.TestCase):
                                     "`<placeholder>`, `*.py`, [helper](helper.py#top), `docs/plans`, "
                                     "[site](https://example.com), [web](http://example.com), "
                                     "[email](mailto:ci@example.com), [heading](#top), [empty](), "
-                                    "[placeholder](<placeholder>), [glob](*.py)")
+                                    "[placeholder](<placeholder>), [glob](*.py), `plugins/<name>/main.py`")
         agents.write_text(template, encoding="utf-8")
         (project / "CLAUDE.md").write_text("@AGENTS.md\n", encoding="utf-8")
         (project / "helper.py").write_text("", encoding="utf-8")
@@ -94,6 +94,12 @@ class DoctorTests(unittest.TestCase):
         (project / "docs/notes/a.md").write_text("", encoding="utf-8")
         fx.git("add", "docs/notes", cwd=project)
         fx.git("commit", "-q", "-m", "docs: add notes", cwd=project)
+        result = self.doctor("--project", str(project))
+        self.assertIn("PASS table check", result.stdout)
+        (project / "plugins/a").mkdir(parents=True)
+        (project / "plugins/a/main.py").write_text("", encoding="utf-8")
+        fx.git("add", "plugins", cwd=project)
+        fx.git("commit", "-q", "-m", "feat: add a plugin", cwd=project)
         result = self.doctor("--project", str(project))
         self.assertIn("PASS table check", result.stdout)
         (project / "newarea").mkdir()

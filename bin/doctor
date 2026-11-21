@@ -143,6 +143,7 @@ def template_headings():
 def check_sources_table(report, project, lines):
     in_section = False
     paths = set()
+    pattern_tops = set()
     sha = ""
     for line in lines:
         line = line.strip()
@@ -163,6 +164,10 @@ def check_sources_table(report, project, lines):
                 tokens.append(target)
         for token in tokens:
             if any(char in token for char in "<>*"):
+                # A pattern such as skills/<name>/SKILL.md cannot be checked, but it covers its folder.
+                first = token.split("/", 1)[0]
+                if "/" in token and not any(char in first for char in "<>*"):
+                    pattern_tops.add(Path(first))
                 continue
             token = token.replace(r"\|", "|")
             path = Path(token)
@@ -188,7 +193,7 @@ def check_sources_table(report, project, lines):
         report.line("WARN", "table check", "could not compare HEAD with " + sha)
         return
     fields = output.split("\0")
-    tops = {Path(path.parts[0]) for path in paths if path.parts}  # a row inside a folder covers it
+    tops = {Path(path.parts[0]) for path in paths if path.parts} | pattern_tops  # a row inside a folder covers it
     removed, added = [], []
     for status, name in zip(fields[0::2], fields[1::2]):
         path = Path(name)
