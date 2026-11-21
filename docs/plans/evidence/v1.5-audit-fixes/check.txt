@@ -81,3 +81,8 @@ Ran 77 tests in 88.055s
 
 OK
 GUARD: real home unchanged
+
+## After install (Claude)
+- GitHub Actions passed on ubuntu-latest and macos-latest for the commit.
+- bin/setup: 5 actions (map links added, init links removed, three deny rules added); bin/doctor --discovery: 8 harness skills on both hosts, no WARN or FAIL.
+- Live evals (python3 evals/run.py --jobs 4 --repeat 2): EVALS: 40/40 passed, every host and case passing 2/2, including route-init, whose Korean "init" request now loads the map skill.
