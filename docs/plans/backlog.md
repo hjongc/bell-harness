@@ -32,6 +32,11 @@ Findings from audit passes over the harness. Each entry has evidence and a size.
 - Evidence: by reading the code: `Skill(skill="other-plugin:spec")` is recorded as `spec`. No such plugin is installed on this machine, so it has not happened.
 - Direction: accept only the bare name, or the bare name with a known harness prefix.
 
+## Fixed during the audit
+- `bin/setup --restore` crashed with a traceback when `~/.claude/settings.json` had become invalid JSON; it now skips the settings with a message and undoes the rest (`tests/test_setup.py::test_restore_survives_invalid_settings`).
+- `bin/doctor --project <missing dir>` exited 0 with a misleading "AGENTS.md not found" warning; it now fails with "is not a directory" (`tests/test_doctor.py::test_missing_project_directory_fails`).
+
 ## Covered areas
 - Pass 1: README against real behavior (install, check and undo, eval case count). Case count and commands match.
 - Pass 2: eval runner (`evals/run.py`) and the `init` name. Four findings, none fixed (each changes grading behavior and needs a decision).
+- Pass 3: `bin/setup` and `bin/doctor` edge cases in a temporary home (missing or non-git project, unknown backup id, memory notes in CLAUDE.md, invalid settings). Two bugs fixed; the other cases behaved correctly.

@@ -161,6 +161,12 @@ class DoctorTests(unittest.TestCase):
         result = self.doctor("--project", str(project))
         self.assertIn("WARN table check: since {}: removed under a row: helper.py".format(parent), result.stdout)
 
+    def test_missing_project_directory_fails(self):
+        result = self.doctor("--project", str(self.fx.tmp / "nope"))
+        self.assertEqual(result.returncode, 1, result.stdout)
+        self.assertIn("FAIL project:", result.stdout)
+        self.assertIn("is not a directory", result.stdout)
+
     def test_discovery(self):
         result = self.doctor("--discovery")
         self.assertEqual(result.returncode, 0, result.stdout)

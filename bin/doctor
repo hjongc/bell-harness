@@ -213,6 +213,9 @@ def check_sources_table(report, project, lines):
 
 
 def check_project(report, project):
+    if not project.is_dir():
+        report.line("FAIL", "project", "{} is not a directory".format(project))
+        return
     agents = project / "AGENTS.md"
     if agents.is_file():
         lines = agents.read_text(encoding="utf-8").splitlines()

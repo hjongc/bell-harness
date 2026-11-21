@@ -306,7 +306,10 @@ def skipped(item):
 
 
 def undo_settings(entries, dry_run):
-    data, before = read_settings()
+    try:
+        data, before = read_settings()
+    except ValueError:
+        return skipped("~/{} (not valid JSON; fix it and undo the settings by hand)".format(h.SETTINGS))
     changed = False
     for entry in entries:
         key = tuple(entry["key"])

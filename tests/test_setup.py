@@ -315,6 +315,16 @@ class SetupTests(unittest.TestCase):
         self.assertEqual(tree_snapshot(fx.home), installed)
         self.assertEqual(fx.backups(), [backup_id])
 
+    def test_restore_survives_invalid_settings(self):
+        fx = self.fx
+        self.assertEqual(fx.run("setup").returncode, 0)
+        (fx.home / ".claude/settings.json").write_text("{bad", encoding="utf-8")
+        result = fx.run("setup", "--restore", fx.backups()[0])
+        self.assertEqual(result.returncode, 0, result.stdout)
+        self.assertNotIn("Traceback", result.stdout)
+        self.assertIn("restore: skipped ~/.claude/settings.json (not valid JSON", result.stdout)
+        self.assertEqual((fx.home / ".claude/skills/spec/SKILL.md").read_text(encoding="utf-8"), "old spec\n")
+
     def test_restore_resumes_after_a_partial_undo(self):
         fx = self.fx
         self.assertEqual(fx.run("setup").returncode, 0)
