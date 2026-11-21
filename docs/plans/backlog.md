@@ -32,6 +32,17 @@ Findings from audit passes over the harness. Each entry has evidence and a size.
 - Evidence: by reading the code: `Skill(skill="other-plugin:spec")` is recorded as `spec`. No such plugin is installed on this machine, so it has not happened.
 - Direction: accept only the bare name, or the bare name with a known harness prefix.
 
+### B6: The plan-mode rule collides with unattended work on approved specs (medium)
+- Area: `global/CLAUDE.md:9`, `skills/away/SKILL.md`, `global/AGENTS.md:37`.
+- Evidence: by reading the rules together. CLAUDE.md says to agree on a plan in plan mode before editing any work of three or more steps; plan mode waits for the user's approval. The roadmap rule and the away skill say an item whose spec is approved runs without asking. An agent that follows the first rule while the user is away stops at the first item.
+- Direction: one clause in CLAUDE.md that an approved spec is the agreed plan, so plan mode is for work that has no approved spec.
+
+### B7: The preflight rule is not being followed (small, about use rather than code)
+- Area: `global/AGENTS.md:50`.
+- Evidence: the rule says to run `preflight` before pushing any diff larger than a single obvious fix. Between v1.1 and this audit, more than twenty multi-file commits were pushed to this repository and `preflight` ran once, before the first publication. Review happened through `scripts/check`, spec comparison and CI instead.
+- Why it matters: a rule that is routinely skipped teaches agents that global rules are optional.
+- Direction: either narrow the rule to what is actually wanted (for example, delegated changes and first pushes of a spec) or keep it and add a pre-push reminder; the user decides which.
+
 ## Fixed during the audit
 - `bin/setup --restore` crashed with a traceback when `~/.claude/settings.json` had become invalid JSON; it now skips the settings with a message and undoes the rest (`tests/test_setup.py::test_restore_survives_invalid_settings`).
 - `bin/doctor --project <missing dir>` exited 0 with a misleading "AGENTS.md not found" warning; it now fails with "is not a directory" (`tests/test_doctor.py::test_missing_project_directory_fails`).
@@ -42,3 +53,4 @@ Findings from audit passes over the harness. Each entry has evidence and a size.
 - Pass 2: eval runner (`evals/run.py`) and the `init` name. Four findings, none fixed (each changes grading behavior and needs a decision).
 - Pass 3: `bin/setup` and `bin/doctor` edge cases in a temporary home (missing or non-git project, unknown backup id, memory notes in CLAUDE.md, invalid settings). Two bugs fixed; the other cases behaved correctly.
 - Pass 4: skill bodies (cross-references, tool paths, script syntax). Two wording bugs fixed; `ui-check.mjs` parses but has still never been run against a page.
+- Pass 5: global rules read against each other and against what happened in practice. Two findings recorded, none fixed (both change global rules).
