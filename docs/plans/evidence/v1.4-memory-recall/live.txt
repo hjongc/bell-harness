@@ -1,0 +1,1 @@
+Live evals after review (python3 evals/run.py --jobs 4): memory-reason-ko and memory-observed passed on both hosts in the full run (EVALS: 38/40; the two failures were unrelated cases and passed on rerun, see v1.3-away evidence).

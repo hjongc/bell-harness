@@ -67,3 +67,9 @@ Ran 63 tests in 68.837s
 
 OK
 GUARD: real home unchanged
+
+## After install (Claude)
+- bin/setup linked the away skill; bin/doctor --discovery: 8 harness skills on both hosts.
+- Live evals, full run: EVALS: 38/40 passed. Both failures passed on rerun (4/4):
+  - claude away-gate-ko returned an empty answer once. The case asks the agent to work a roadmap while the runner forbids writes and caps turns at 8, so a run can end before a final answer.
+  - codex route-eval read the harness's own spec skill file while investigating "a changed skill description", and the grader counts any read of a harness SKILL.md as a load.
