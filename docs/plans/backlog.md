@@ -47,6 +47,7 @@ Findings from audit passes over the harness. Each entry has evidence and a size.
 - `bin/setup --restore` crashed with a traceback when `~/.claude/settings.json` had become invalid JSON; it now skips the settings with a message and undoes the rest (`tests/test_setup.py::test_restore_survives_invalid_settings`).
 - `bin/doctor --project <missing dir>` exited 0 with a misleading "AGENTS.md not found" warning; it now fails with "is not a directory" (`tests/test_doctor.py::test_missing_project_directory_fails`).
 - Skills named harness tools (`bin/doctor`, `templates/AGENTS.md`) without saying where they are; in another repository an agent could not find them. `init` and `preflight` now say the harness root is two folders above the skill's real path. The `spec` skill sent unattended failures to "Blocked" while `away` uses `docs/plans/blocked.md`; both now name the file (v1-skills#D8).
+- `v1-skills#D1` still said the harness has six skills while eight ship, and nothing superseded it; `AGENTS.md` cited it. Added `v1.3-away#D7` superseding it and updated the table. The citation check from v1.4 confirms the fix: with the old table it reports `v1-skills#D1 superseded; cite v1.3-away#D7`.
 
 ## Covered areas
 - Pass 1: README against real behavior (install, check and undo, eval case count). Case count and commands match.
@@ -55,3 +56,4 @@ Findings from audit passes over the harness. Each entry has evidence and a size.
 - Pass 4: skill bodies (cross-references, tool paths, script syntax). Two wording bugs fixed; `ui-check.mjs` parses but has still never been run against a page.
 - Pass 5: global rules read against each other and against what happened in practice. Two findings recorded, none fixed (both change global rules).
 - Pass 6: installed git hooks in a temporary repository (scoped and breaking subjects, Hangul in subject and body, non-conventional subjects, revert, merge, cherry-pick, a chained repo-local hook, a staged secret, a 3 MB binary in 0.17 s). All behaved as specified; no finding. Note for the user: Hangul in the commit body is rejected as well as in the subject unless `.harness.json` allows it.
+- Pass 7: plan documents against the code (decisions still in force, roadmap, statements of counts). One outdated decision fixed. Older spec appendices no longer match the current skill files; they are kept as the record of what was approved at the time.
