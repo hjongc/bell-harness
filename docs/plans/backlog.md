@@ -2,6 +2,15 @@
 
 Findings from audit passes over the harness. Each entry has evidence and a size. Nothing here is approved work; an item becomes work when it gets a spec.
 
+## Priorities
+
+Suggested order, by what a user would hit first:
+1. B6 (plan mode against unattended work) and B2 (`init` name clash): both can make an everyday request do the wrong thing.
+2. B1 (moving the repository blocks setup and doctor): rare, but there is no documented way out.
+3. B3, B4, B5 (eval runner): they make results less trustworthy, not wrong in use.
+4. B7 (preflight rule not followed) and B8 (short bypass flag): decisions for the user about how strict to be.
+5. B10, B11, B9: small.
+
 ## Open
 
 ### B1: Moving the harness repository blocks both setup and doctor (medium)
@@ -58,6 +67,11 @@ Findings from audit passes over the harness. Each entry has evidence and a size.
 - Evidence: running `bin/doctor --project` read-only over the local repositories gave no crash and two kinds of warning. One repository has records without a `why` field (true positives). Another has a new record whose `supersedes` points at an entry in an older log that uses a `## DECIDED` heading and `- D23 (date). ...` lines; doctor reports `supersedes unknown decision`, which is accurate but does not say why.
 - Direction: when a `docs/plans` file has decision-like lines outside a `## Decisions` section, have doctor suggest running the `init` skill to migrate them. Until then the fix per repository is to run `init`.
 
+### B11: The real-home guard does not watch the harness's own state folder (small)
+- Area: `scripts/check` (`snapshot_home`).
+- Evidence: by reading the code. The guard snapshots the skill, rules and command folders, three instruction and settings files and the global `core.hooksPath`. It does not include `~/.bell-harness/backups`, `~/.codex/config.toml` or other global git keys. A test that wrote only there would pass the guard. Every current test goes through `harness_env.make_env`, so nothing does this today.
+- Direction: add the backups folder listing and the Codex config hash to the snapshot.
+
 ## Fixed during the audit
 - `bin/setup --restore` crashed with a traceback when `~/.claude/settings.json` had become invalid JSON; it now skips the settings with a message and undoes the rest (`tests/test_setup.py::test_restore_survives_invalid_settings`).
 - `bin/doctor --project <missing dir>` exited 0 with a misleading "AGENTS.md not found" warning; it now fails with "is not a directory" (`tests/test_doctor.py::test_missing_project_directory_fails`).
@@ -83,3 +97,4 @@ Findings from audit passes over the harness. Each entry has evidence and a size.
 - Pass 12: `bin/doctor --project` read-only across every local repository. No crash and no false positive after the pass 11 fix; one finding recorded.
 - Pass 13: regression probes of the fixes made during this audit. One regression found and fixed.
 - Pass 14: regression probes of the other audit fixes (setup output order and the "replaces" note, the placeholder warning on filled files, pattern paths, a file passed as a project). No finding.
+- Pass 15: the real-home guard in `scripts/check`. One small finding recorded. Every listed area has now been covered; the audit ends here.
