@@ -27,7 +27,7 @@ For each added block, ask whether it could have stopped at an earlier rung: not 
 
 ## 4. Decisions
 
-For the paths the diff touches, look up decisions in force (`grep -rn "<path>" docs/plans`). Flag a change that contradicts one without a new decision line that supersedes it. When the project has `lib/decisions.py` or `bin/doctor --project`, run it.
+For the paths the diff touches, look up decisions in force (`grep -rn "<path>" docs/plans`). Flag a change that contradicts one without a new decision line that supersedes it. Then run the harness check on the project: `<harness>/bin/doctor --project .`, where `<harness>` is two folders above this skill's real path (`realpath <skill-dir>/../..`).
 
 ## 5. Evidence
 

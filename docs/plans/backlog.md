@@ -35,8 +35,10 @@ Findings from audit passes over the harness. Each entry has evidence and a size.
 ## Fixed during the audit
 - `bin/setup --restore` crashed with a traceback when `~/.claude/settings.json` had become invalid JSON; it now skips the settings with a message and undoes the rest (`tests/test_setup.py::test_restore_survives_invalid_settings`).
 - `bin/doctor --project <missing dir>` exited 0 with a misleading "AGENTS.md not found" warning; it now fails with "is not a directory" (`tests/test_doctor.py::test_missing_project_directory_fails`).
+- Skills named harness tools (`bin/doctor`, `templates/AGENTS.md`) without saying where they are; in another repository an agent could not find them. `init` and `preflight` now say the harness root is two folders above the skill's real path. The `spec` skill sent unattended failures to "Blocked" while `away` uses `docs/plans/blocked.md`; both now name the file (v1-skills#D8).
 
 ## Covered areas
 - Pass 1: README against real behavior (install, check and undo, eval case count). Case count and commands match.
 - Pass 2: eval runner (`evals/run.py`) and the `init` name. Four findings, none fixed (each changes grading behavior and needs a decision).
 - Pass 3: `bin/setup` and `bin/doctor` edge cases in a temporary home (missing or non-git project, unknown backup id, memory notes in CLAUDE.md, invalid settings). Two bugs fixed; the other cases behaved correctly.
+- Pass 4: skill bodies (cross-references, tool paths, script syntax). Two wording bugs fixed; `ui-check.mjs` parses but has still never been run against a page.

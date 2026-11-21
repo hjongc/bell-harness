@@ -81,7 +81,7 @@ When the spec will run without a person watching (overnight, a goal loop), add:
 ```markdown
 ## Unattended rules
 1. Ambiguity: take the conservative option, add one `observed` line to Decisions, continue.
-2. Three failures on one item: stop that item, record the last error under Blocked, move on.
+2. Three failures on one item: stop that item, record the last error in `docs/plans/blocked.md`, move on.
 3. Do not touch: <CI config, migrations, secrets, unrelated modules>.
 4. No force-push, branch deletion, destructive migration or unlisted dependency.
 ```
