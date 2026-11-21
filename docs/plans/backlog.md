@@ -53,6 +53,11 @@ Findings from audit passes over the harness. Each entry has evidence and a size.
 - Evidence: `python3 lib/privacy.py <dir>` on a file with ten sample lines flagged a macOS home path, a Linux home path, an email, a key and a WSL-mounted Windows home path, but not a native Windows path of the form `C:\Users\<name>\code`. Windows is a stated non-goal, so this matters only for pasted paths.
 - Direction: add a `[A-Za-z]:\\Users\\<name>` pattern when Windows support is considered.
 
+### B10: Decision logs written before the harness are invisible to the checker (small)
+- Area: `lib/decisions.py`, `skills/init`.
+- Evidence: running `bin/doctor --project` read-only over the local repositories gave no crash and two kinds of warning. One repository has records without a `why` field (true positives). Another has a new record whose `supersedes` points at an entry in an older log that uses a `## DECIDED` heading and `- D23 (date). ...` lines; doctor reports `supersedes unknown decision`, which is accurate but does not say why.
+- Direction: when a `docs/plans` file has decision-like lines outside a `## Decisions` section, have doctor suggest running the `init` skill to migrate them. Until then the fix per repository is to run `init`.
+
 ## Fixed during the audit
 - `bin/setup --restore` crashed with a traceback when `~/.claude/settings.json` had become invalid JSON; it now skips the settings with a message and undoes the rest (`tests/test_setup.py::test_restore_survives_invalid_settings`).
 - `bin/doctor --project <missing dir>` exited 0 with a misleading "AGENTS.md not found" warning; it now fails with "is not a directory" (`tests/test_doctor.py::test_missing_project_directory_fails`).
@@ -74,3 +79,4 @@ Findings from audit passes over the harness. Each entry has evidence and a size.
 - Pass 9: the project template through `bin/doctor`, and what `scripts/check` covers (privacy and decision checks run inside the test suite). One bug fixed.
 - Pass 10: untested branches of `bin/setup` (a failing plugin uninstall, then restore). Restore worked; the output problem above was fixed.
 - Pass 11: the updated doctor against this machine and against the first real project (read-only). One false-positive bug fixed.
+- Pass 12: `bin/doctor --project` read-only across every local repository. No crash and no false positive after the pass 11 fix; one finding recorded.
