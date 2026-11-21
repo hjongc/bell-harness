@@ -43,6 +43,16 @@ Findings from audit passes over the harness. Each entry has evidence and a size.
 - Why it matters: a rule that is routinely skipped teaches agents that global rules are optional.
 - Direction: either narrow the rule to what is actually wanted (for example, delegated changes and first pushes of a spec) or keep it and add a pre-push reminder; the user decides which.
 
+### B8: Claude's deny rules catch the short bypass flag only in first position (small, not verified live)
+- Area: `config/claude-settings.json` (`Bash(git commit -n:*)`).
+- Evidence: by reading the patterns. `--no-verify` is matched anywhere by `Bash(git * --no-verify*)`, but `-n` is matched only directly after `git commit`, so `git commit -a -n -m ...` or `git -C <dir> commit -n` matches no rule. A live test was blocked by the session's own permission classifier, so this is unconfirmed. Codex rules have the same prefix limit (v1.2-field-fixes#D7).
+- Direction: decide whether a broader pattern is worth its false positives (a message containing ` -n`), or rely on `bin/doctor --project`, which lists commits the hook would have rejected.
+
+### B9: The privacy scan does not recognize Windows home paths (small)
+- Area: `lib/patterns.py` (`HOME_PATHS`).
+- Evidence: `python3 lib/privacy.py <dir>` on a file with ten sample lines flagged a macOS home path, a Linux home path, an email, a key and a WSL-mounted Windows home path, but not a native Windows path of the form `C:\Users\<name>\code`. Windows is a stated non-goal, so this matters only for pasted paths.
+- Direction: add a `[A-Za-z]:\\Users\\<name>` pattern when Windows support is considered.
+
 ## Fixed during the audit
 - `bin/setup --restore` crashed with a traceback when `~/.claude/settings.json` had become invalid JSON; it now skips the settings with a message and undoes the rest (`tests/test_setup.py::test_restore_survives_invalid_settings`).
 - `bin/doctor --project <missing dir>` exited 0 with a misleading "AGENTS.md not found" warning; it now fails with "is not a directory" (`tests/test_doctor.py::test_missing_project_directory_fails`).
@@ -57,3 +67,4 @@ Findings from audit passes over the harness. Each entry has evidence and a size.
 - Pass 5: global rules read against each other and against what happened in practice. Two findings recorded, none fixed (both change global rules).
 - Pass 6: installed git hooks in a temporary repository (scoped and breaking subjects, Hangul in subject and body, non-conventional subjects, revert, merge, cherry-pick, a chained repo-local hook, a staged secret, a 3 MB binary in 0.17 s). All behaved as specified; no finding. Note for the user: Hangul in the commit body is rejected as well as in the subject unless `.harness.json` allows it.
 - Pass 7: plan documents against the code (decisions still in force, roadmap, statements of counts). One outdated decision fixed. Older spec appendices no longer match the current skill files; they are kept as the record of what was approved at the time.
+- Pass 8: privacy scan with sample lines and the Claude deny patterns. Two small findings recorded.
