@@ -9,13 +9,13 @@ The user is about to leave, or has left, and wants work to continue without them
 
 ## 1. Briefing (before they leave)
 
-Read `docs/plans/roadmap.md` and the spec of each unchecked item. When there is no roadmap, use the specs in `docs/plans/` by their `Status` line. Show three groups, one line per item with what it changes:
+Read `docs/plans/roadmap.md` and the spec of each unchecked item. When there is no roadmap, use the specs in `docs/plans/` by their `Status` line. Show exactly these three groups under these headings, one line per item with what it changes; write "none" for an empty group so the user can see nothing was skipped. List only roadmap items; mention other pending work in one closing line at most:
 
 - **Ready:** the spec says `Status: approved`. These run in order without asking.
 - **Stops:** approved, but the item includes an action on the approval list (publishing, deploying, deleting outside the change, force-pushing, spending money, sending messages, global configuration). Say which action.
 - **Waiting:** no approved spec. Name the decisions each one still needs, so the user can approve now and add it to the queue.
 
-Then ask which range to run. The user sets the goal themselves; offer a sentence they can paste, for example `/goal Work through the roadmap up to <item>, following the away skill.` When nothing is Ready, say so plainly instead of inventing work.
+Then ask which range to run. The user sets the goal themselves, so always end the briefing with a sentence they can paste, for example `/goal Work through the roadmap up to <item>, following the away skill.` When nothing is Ready, say so plainly instead of inventing work.
 
 ## 2. While they are away
 
