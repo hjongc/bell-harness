@@ -18,6 +18,6 @@ Specs in the order they run. An unchecked item starts without asking when its sp
 - [x] v1.8-check-speed: run the offline check in isolated parallel workers
 - [x] v1.9-project-doctor: read-only project diagnostics and batched commit validation
 - [x] v1.10-backup-inventory: list backups and verify backup-record paths
-- [ ] v1.11-eval-evidence: distinguish verified skill use from incomplete or failed tool evidence
+- [x] v1.11-eval-evidence: distinguish verified skill use from incomplete or failed tool evidence
 - [ ] v1.12-doctor-check-speed: cut repeated diagnostic fixture setup and measure full check time
 - [ ] v1.13-offline-skill-pilot: compare project verification workflows on one offline task

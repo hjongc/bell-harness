@@ -23,8 +23,9 @@ FIXTURES = ROOT / "evals/fixtures"
 HOSTS = ("claude", "codex")
 
 
-def harness_skills():
-    return sorted(p.name for p in (ROOT / "skills").iterdir() if p.is_dir())
+def harness_skill_prefixes():
+    paths = sorted((ROOT / "skills").glob("*/SKILL.md"))
+    return {path.parent.name: path.read_text(encoding="utf-8").splitlines()[:3] for path in paths}
 
 
 def load_cases():
@@ -64,20 +65,44 @@ def json_lines(text):
             yield event
 
 
-def parse_claude(text):
-    """Return (skills loaded in order, final answer)."""
-    skills, answer = [], ""
+def parse_claude(text, names):
+    """Return verified skills, the final answer, and unresolved evidence."""
+    calls, results, unverified = {}, {}, []
+    answer = ""
     for event in json_lines(text):
-        if event.get("type") == "assistant":
-            content = (event.get("message") or {}).get("content")
-            for block in content if isinstance(content, list) else []:
-                if isinstance(block, dict) and block.get("type") == "tool_use" and block.get("name") == "Skill":
-                    name = str((block.get("input") or {}).get("skill", ""))
-                    if ":" not in name:
-                        skills.append(name)
-        elif event.get("type") == "result" and isinstance(event.get("result"), str):
+        kind = event.get("type")
+        if kind == "result" and isinstance(event.get("result"), str):
             answer = event["result"]
-    return skills, answer
+            continue
+        message = event.get("message")
+        content = message.get("content") if isinstance(message, dict) else None
+        for block in content if isinstance(content, list) else ():
+            if not isinstance(block, dict):
+                continue
+            if kind == "assistant" and block.get("type") == "tool_use" and block.get("name") == "Skill":
+                inputs = block.get("input")
+                name = inputs.get("skill") if isinstance(inputs, dict) else None
+                if not isinstance(name, str) or name not in names:
+                    continue
+                call_id = block.get("id")
+                if isinstance(call_id, str) and call_id:
+                    calls[call_id] = name
+                else:
+                    unverified.append((name, "missing tool call ID"))
+            elif kind == "user" and block.get("type") == "tool_result":
+                call_id = block.get("tool_use_id")
+                if isinstance(call_id, str) and call_id in calls:
+                    results[call_id] = block.get("is_error", False)
+
+    skills = []
+    for call_id, name in calls.items():
+        error = results.get(call_id)
+        if error is False:
+            skills.append(name)
+        elif error is not True:
+            reason = "invalid tool result" if call_id in results else "missing tool result"
+            unverified.append((name, reason))
+    return skills, answer, unverified
 
 
 def command_text(command):
@@ -86,26 +111,55 @@ def command_text(command):
     return str(command)
 
 
-def parse_codex(text, names):
-    """Return (skills loaded in order, last agent message)."""
-    skills, answer = [], ""
+def parse_codex(text, prefixes):
+    """Return verified skills, the last agent message, and unresolved evidence."""
+    skills, unverified, pending = [], [], {}
+    answer = ""
     skill_paths = {
-        name: re.compile(r"\.agents/skills/" + re.escape(name) + r"""/SKILL\.md(?=$|[\s'";|&<>()])""")
-        for name in names
+        name: re.compile(r"(?<![\w.-])\.agents/skills/" + re.escape(name) + r"""/SKILL\.md(?=$|[\s'";|&<>()])""")
+        for name in prefixes
     }
     for event in json_lines(text):
-        if event.get("type") != "item.completed":
-            continue
+        kind = event.get("type")
         item = event.get("item")
         if not isinstance(item, dict):
             continue
-        kind = str(item.get("type", ""))
-        if kind == "command_execution" and item.get("exit_code") == 0:
-            command = command_text(item.get("command"))
-            skills.extend(name for name, path in skill_paths.items() if path.search(command))
-        elif kind == "agent_message" and isinstance(item.get("text"), str):
-            answer = item["text"]
-    return skills, answer
+        if item.get("type") == "agent_message" and kind == "item.completed":
+            if isinstance(item.get("text"), str):
+                answer = item["text"]
+            continue
+        if item.get("type") != "command_execution" or kind not in ("item.started", "item.updated", "item.completed"):
+            continue
+        command = command_text(item.get("command"))
+        matches = [name for name, path in skill_paths.items() if path.search(command)]
+        raw_id = item.get("id")
+        item_id = raw_id if isinstance(raw_id, str) and raw_id else None
+        if kind != "item.completed":
+            if matches and item_id is not None:
+                pending[item_id] = list(dict.fromkeys(pending.get(item_id, []) + matches))
+            elif matches:
+                unverified.extend((name, "missing command ID") for name in matches)
+            continue
+
+        candidates = list(dict.fromkeys(pending.pop(item_id, []) + matches))
+        code, status = item.get("exit_code"), item.get("status")
+        if status in ("failed", "declined") or (type(code) is int and code != 0):
+            continue
+        output = item.get("aggregated_output")
+        lines = output.splitlines() if isinstance(output, str) else []
+        for name in candidates:
+            if type(code) is not int or status not in (None, "completed"):
+                unverified.append((name, "missing command completion"))
+            elif name not in matches:
+                unverified.append((name, "missing completed command path"))
+            elif len(prefixes[name]) == 3 and any(lines[i:i + 3] == prefixes[name] for i in range(len(lines))):
+                skills.append(name)
+            else:
+                unverified.append((name, "missing skill output prefix"))
+
+    for matches in pending.values():
+        unverified.extend((name, "unfinished command") for name in matches)
+    return skills, answer, unverified
 
 
 def command_for(host, prompt, repo, max_turns=8):
@@ -134,8 +188,7 @@ def grade(case, skills, answer):
     return None
 
 
-def run_one(host, case, timeout, env):
-    names = harness_skills()
+def run_one(host, case, timeout, env, skill_prefixes):
     with tempfile.TemporaryDirectory(prefix="harness-eval-") as tmp:
         try:
             repo = prepare(case["fixture"], tmp, env)
@@ -149,11 +202,13 @@ def run_one(host, case, timeout, env):
             return host, case["id"], False, "skills=[] error: {}".format(error), ""
     text = result.stdout.decode("utf-8", "replace")
     if host == "claude":
-        skills, answer = parse_claude(text)
+        skills, answer, unverified = parse_claude(text, skill_prefixes)
     else:
-        skills, answer = parse_codex(text, names)
-    skills = [name for name in skills if name in names]
-    if answer.strip():
+        skills, answer, unverified = parse_codex(text, skill_prefixes)
+    if "expect_skill" in case and unverified:
+        evidence = ", ".join("{} ({})".format(name, reason) for name, reason in sorted(set(unverified)))
+        failure = "unverified skill evidence: " + evidence
+    elif answer.strip():
         failure = grade(case, skills, answer)
     else:
         failure = "exit {}".format(result.returncode) if result.returncode else "missing final answer"
@@ -202,8 +257,9 @@ def main(argv=None):
     except (OSError, subprocess.CalledProcessError) as error:
         print("cannot determine Git repository environment: {}".format(error), file=sys.stderr)
         return 2
+    skill_prefixes = harness_skill_prefixes()
     with ThreadPoolExecutor(max_workers=args.jobs) as pool:
-        results = list(pool.map(lambda job: run_one(job[0], job[1], args.timeout, env), attempts))
+        results = list(pool.map(lambda job: run_one(job[0], job[1], args.timeout, env, skill_prefixes), attempts))
     passed = 0
     for start in range(0, len(results), args.repeat):
         group = results[start:start + args.repeat]

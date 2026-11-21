@@ -16,13 +16,28 @@ sys.stdout.write(open({events!r}).read())
 """
 
 
-def claude_events(skills, answer):
+def jsonl(events):
+    return "".join(json.dumps(event) + "\n" for event in events)
+
+
+def claude_events(skills, answer, tool_result="success"):
     lines = []
-    for name in skills:
-        lines.append({"type": "assistant", "message": {"content": [
-            {"type": "tool_use", "name": "Skill", "input": {"skill": name}}]}})
+    for index, name in enumerate(skills):
+        tool_id = "toolu_{}".format(index)
+        lines.append({"type": "assistant", "message": {"role": "assistant", "content": [
+            {"type": "tool_use", "id": tool_id, "name": "Skill", "input": {"skill": name}}]}})
+        if tool_result != "missing":
+            result = {"type": "tool_result", "tool_use_id": tool_id, "content": "skill loaded"}
+            if tool_result == "error":
+                result.update(content="skill not found", is_error=True)
+            lines.append({"type": "user", "message": {"role": "user", "content": [result]}})
     lines.append({"type": "result", "result": answer})
-    return "\n".join(json.dumps(line) for line in lines) + "\n"
+    return jsonl(lines)
+
+
+def skill_output(name):
+    path = ROOT / "skills" / name / "SKILL.md"
+    return "\n".join(path.read_text(encoding="utf-8").splitlines()[:3]) + "\n" if path.is_file() else ""
 
 
 def codex_events(skills, answer):
@@ -30,10 +45,12 @@ def codex_events(skills, answer):
     for index, name in enumerate(skills):
         item = {"id": "item_%d" % index, "type": "command_execution",
                 "command": "/bin/zsh -lc 'cat ~/.agents/skills/%s/SKILL.md'" % name}
-        lines.append({"type": "item.started", "item": item})
-        lines.append({"type": "item.completed", "item": {**item, "exit_code": 0}})
+        lines.append({"type": "item.started", "item": {**item, "status": "in_progress"}})
+        lines.append({"type": "item.completed", "item": {
+            **item, "exit_code": 0, "status": "completed", "aggregated_output": skill_output(name),
+        }})
     lines.append({"type": "item.completed", "item": {"id": "m", "type": "agent_message", "text": answer}})
-    return "\n".join(json.dumps(line) for line in lines) + "\n"
+    return jsonl(lines)
 
 
 class EvalsTest(unittest.TestCase):
@@ -46,11 +63,14 @@ class EvalsTest(unittest.TestCase):
         subprocess.run(["git", "config", "--file", self.env["GIT_CONFIG_GLOBAL"], "core.hooksPath", str(HOOKS)],
                        check=True)
 
+    def stub_events(self, host, text):
+        events = self.tmp / (host + "-events.txt")
+        events.write_text(text, encoding="utf-8")
+        write_stub(self.tmp, host, STUB.format(events=str(events)))
+
     def stub(self, host, skills, answer):
         build = claude_events if host == "claude" else codex_events
-        events = self.tmp / (host + "-events.txt")
-        events.write_text(build(skills, answer), encoding="utf-8")
-        write_stub(self.tmp, host, STUB.format(events=str(events)))
+        self.stub_events(host, build(skills, answer))
 
     def run_evals(self, *args):
         return subprocess.run([sys.executable, str(RUN)] + list(args), env=self.env,
@@ -147,23 +167,76 @@ class EvalsTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
     def test_codex_requires_a_successful_skill_read(self):
-        for event_type, exit_code, suffix in (
-            ("item.started", None, ""),
-            ("item.completed", 1, ""),
-            ("item.completed", 0, ".bak"),
+        for event_type, exit_code, suffix, diagnostic in (
+            ("item.started", None, "", "unverified skill evidence: spec (unfinished command)"),
+            ("item.completed", None, "", "unverified skill evidence: spec (missing command completion)"),
+            ("item.completed", 1, "", "expected skill spec"),
+            ("item.completed", 0, ".bak", "expected skill spec"),
         ):
             with self.subTest(event=event_type, exit_code=exit_code, suffix=suffix):
                 item = {"id": "read", "type": "command_execution",
                         "command": "cat ~/.agents/skills/spec/SKILL.md" + suffix,
-                        "exit_code": exit_code}
+                        "exit_code": exit_code, "aggregated_output": skill_output("spec")}
                 events = [{"type": event_type, "item": item},
                           {"type": "item.completed", "item": {"type": "agent_message", "text": "ok"}}]
-                output = self.tmp / "codex-events.txt"
-                output.write_text("\n".join(json.dumps(event) for event in events))
-                write_stub(self.tmp, "codex", STUB.format(events=str(output)))
+                self.stub_events("codex", jsonl(events))
                 result = self.run_evals("--case", "route-spec", "--host", "codex")
                 self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
-                self.assertIn("expected skill spec", result.stdout)
+                self.assertIn(diagnostic, result.stdout)
+
+    def test_codex_requires_skill_content_in_the_output(self):
+        path = "~/.agents/skills/probe/SKILL.md"
+        samples = (
+            ("path mention", "printf '%s' " + path, path, True),
+            ("truncated prefix", "sed -n '1,2p' " + path, "---\nname: probe\n", True),
+            ("wrong skill", "cat " + path, skill_output("spec"), True),
+            ("non-skill path", "cat ~/backup.agents/skills/probe/SKILL.md", skill_output("probe"), False),
+        )
+        for label, command, output, unverified in samples:
+            with self.subTest(label=label):
+                item = {"id": "read", "type": "command_execution", "command": command,
+                        "exit_code": 0, "status": "completed", "aggregated_output": output}
+                events = [{"type": "item.completed", "item": item},
+                          {"type": "item.completed", "item": {"type": "agent_message", "text": "ok"}}]
+                self.stub_events("codex", jsonl(events))
+                result = self.run_evals("--case", "route-probe", "--host", "codex")
+                self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+                self.assertIn("unverified skill evidence: probe (missing skill output prefix)" if unverified
+                              else "expected skill probe", result.stdout)
+
+    def test_claude_matches_skill_calls_to_results_by_id(self):
+        success = [json.loads(line) for line in claude_events(["probe"], "ok").splitlines()]
+        self.stub_events("claude", jsonl(success[:2] + [success[1], success[2]]))
+        result = self.run_evals("--case", "route-probe", "--host", "claude")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("skills=[probe]", result.stdout)
+
+        self.stub_events("claude", claude_events(["probe"], "ok", tool_result="error"))
+        result = self.run_evals("--case", "route-probe", "--host", "claude")
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertIn("skills=[] expected skill probe", result.stdout)
+
+        success[1]["message"]["content"][0]["tool_use_id"] = "different_call"
+        self.stub_events("claude", jsonl(success))
+        result = self.run_evals("--case", "route-probe", "--host", "claude")
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertIn("skills=[] unverified skill evidence: probe (missing tool result)", result.stdout)
+
+    def test_unverified_evidence_only_fails_routing_cases(self):
+        self.stub_events("claude", claude_events(["probe"], "Python 3.9 only", tool_result="missing"))
+        codex = [json.loads(line) for line in codex_events(["probe"], "Python 3.9 only").splitlines()]
+        del codex[2]["item"]["aggregated_output"]
+        self.stub_events("codex", jsonl(codex))
+
+        report = self.tmp / "attempts.json"
+        result = self.run_evals("--case", "route-small-edit", "--case", "memory-apply",
+                                "--json", str(report))
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        rows = json.loads(report.read_text(encoding="utf-8"))
+        self.assertEqual({(row["case"], row["pass"]) for row in rows},
+                         {("route-small-edit", False), ("memory-apply", True)})
+        self.assertEqual(result.stdout.count("unverified skill evidence: probe"), 2)
+        self.assertIn("EVALS: 2/4 passed", result.stdout)
 
     def test_empty_final_answer_fails(self):
         self.both([], "   ")
