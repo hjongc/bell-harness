@@ -23,7 +23,8 @@ Then ask which range to run. The user sets the goal themselves; offer a sentence
 - A question that would normally go to the user goes to `docs/plans/blocked.md` instead: the item, the question, two or three options with trade-offs, your recommendation, and what you did meanwhile. Then continue with the next item that does not depend on the answer. When a choice is reversible and inside the spec, take the reasonable option, record it as an `observed` decision, and keep going rather than parking it.
 - Actions on the approval list are not run unattended, even when the spec is approved. Prepare everything up to that action and park the action itself.
 - Three failed attempts on one item: stop that item, record the last error in `docs/plans/blocked.md`, move on.
-- Stay inside the chosen range. Finishing early is fine; starting unapproved work is not.
+- Stay inside the chosen range. Implementing unapproved work is not allowed.
+- When the range is finished, or nothing was Ready, prepare the Waiting items instead of stopping: read the code and the decisions in force, write each spec as `Status: draft`, and put every decision the user must make into `docs/plans/blocked.md` with options and a recommendation. Drafts are documents only; nothing is implemented and no draft is marked approved. Work that is not on the roadmap stays untouched, because choosing what to build is the user's call.
 
 ## 3. When they return
 
