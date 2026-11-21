@@ -37,6 +37,7 @@ class PrivacyTests(unittest.TestCase):
             ("assigned-secret", f'OPENAI_API_KEY="{assigned_value}"'),
             ("home-path", "/Us" + "ers/fixture"),
             ("home-path", "/ho" + "me/fixture"),
+            ("home-path", "C:" + "\\Users" + "\\fixture\\code"),
             ("email", "fixture.user" + "@mail" + ".invalid"),
             ("private-term", private_term.upper()),
         ]

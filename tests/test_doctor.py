@@ -36,6 +36,47 @@ class DoctorTests(unittest.TestCase):
         for line in result.stdout.splitlines():
             self.assertRegex(line, r"^(PASS|WARN|FAIL) [^:]+: ")
 
+    def test_setup_repairs_a_moved_installation(self):
+        fx = self.fx
+        old = fx.harness
+        moved = old.with_name("moved")
+        backups = fx.home / ".bell-harness/backups"
+        original = backups / fx.backups()[0]
+        # Restored backup manifests also identify roots, even with damaged lines.
+        manifest = original / "manifest.jsonl"
+        with manifest.open("ab") as stream:
+            stream.write(b"invalid JSON\n[]\n\xff\n")
+        original.rename(backups / (original.name + ".restored"))
+
+        stale = fx.home / ".claude/skills/init"
+        stale.symlink_to(old / "skills/init")
+        retired = fx.home / ".claude/skills/interview"
+        retired.symlink_to(old / "skills/interview")
+        fx.harness = old.rename(moved)
+
+        result = fx.run("setup")
+        self.assertEqual(result.returncode, 0, result.stdout)
+        self.assertNotIn("replaces the existing entry", result.stdout)
+        self.assertIn("unlink ~/.claude/skills/init", result.stdout)
+        self.assertIn("unlink ~/.claude/skills/interview", result.stdout)
+        self.assertFalse(stale.is_symlink())
+        self.assertFalse(retired.is_symlink())
+        for name in fx.skill_names:
+            for directory in (".claude/skills", ".agents/skills"):
+                self.assertEqual((fx.home / directory / name).readlink(), moved / "skills" / name)
+        for path, target in (
+            (".codex/AGENTS.md", "global/AGENTS.md"),
+            (".codex/rules/bell-harness.rules", "config/bell-harness.rules"),
+        ):
+            self.assertEqual((fx.home / path).readlink(), moved / target)
+        repaired = next(backups / name for name in fx.backups() if not name.endswith(".restored"))
+        self.assertEqual((repaired / "home/.claude/skills/probe").readlink(), old / "skills/probe")
+        self.assertEqual(fx.git("config", "--global", "--get", "core.hooksPath").strip(),
+                         str(moved / "git/hooks"))
+        result = fx.run("setup")
+        self.assertEqual(result.returncode, 0, result.stdout)
+        self.assertIn("setup: nothing to do", result.stdout)
+
     def test_broken_link_fails(self):
         os.unlink(str(self.fx.home / ".claude/skills/probe"))
         result = self.doctor()
@@ -108,7 +149,7 @@ class DoctorTests(unittest.TestCase):
         fx.git("add", "newarea", cwd=project)
         fx.git("commit", "-q", "-m", "feat: add a new area", cwd=project)
         result = self.doctor("--project", str(project))
-        self.assertIn("WARN table check: since {}: new folder without a row: newarea; rerun the init skill".format(
+        self.assertIn("WARN table check: since {}: new folder without a row: newarea; rerun the map skill".format(
             checked_at), result.stdout)
 
         (project / "helper.py").unlink()
@@ -127,7 +168,7 @@ class DoctorTests(unittest.TestCase):
         self.assertIn("WARN table check: unknown commit deadbee",
                       self.doctor("--project", str(project)).stdout)
         agents.write_text(template.replace("Checked at <short commit>\n", ""), encoding="utf-8")
-        self.assertIn("WARN table check: no Checked at line (run the init skill)",
+        self.assertIn("WARN table check: no Checked at line (run the map skill)",
                       self.doctor("--project", str(project)).stdout)
         agents.unlink()
         result = self.doctor("--project", str(project))
@@ -167,6 +208,19 @@ class DoctorTests(unittest.TestCase):
         self.assertEqual(result.returncode, 1, result.stdout)
         self.assertIn("FAIL project:", result.stdout)
         self.assertIn("is not a directory", result.stdout)
+
+    def test_project_warns_about_legacy_decisions(self):
+        fx = self.fx
+        project = fx.tmp / "legacy"
+        init_repo(project, fx.env)
+        fx.git("config", "--global", "core.hooksPath", str(fx.harness / "git/hooks"))
+        plans = project / "docs/plans"
+        plans.mkdir(parents=True)
+        (plans / "old.md").write_text("## DECIDED\n- D1 (date). Old record\n", encoding="utf-8")
+        result = self.doctor("--project", str(project))
+        self.assertEqual(result.returncode, 0, result.stdout)
+        self.assertIn('WARN legacy decisions: docs/plans/old.md has 1 decision-like line(s) '
+                      'outside "## Decisions" (run the map skill to migrate)', result.stdout)
 
     def test_unfilled_template_is_reported(self):
         fx = self.fx

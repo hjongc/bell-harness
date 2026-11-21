@@ -6,5 +6,5 @@
     "codex"
   ],
   "prompt": "이 저장소 init 해줘. 아직 파일은 수정하지 말고 무엇을 채울지만 알려줘.",
-  "expect_skill": "init"
+  "expect_skill": "map"
 }

@@ -66,7 +66,8 @@ def parse_claude(text):
             for block in content if isinstance(content, list) else []:
                 if isinstance(block, dict) and block.get("type") == "tool_use" and block.get("name") == "Skill":
                     name = str((block.get("input") or {}).get("skill", ""))
-                    skills.append(name.split(":")[-1])
+                    if ":" not in name:
+                        skills.append(name)
         elif event.get("type") == "result" and isinstance(event.get("result"), str):
             answer = event["result"]
     return skills, answer
@@ -89,7 +90,7 @@ def parse_codex(text, names):
         if "command" in kind and "command" in item:
             command = command_text(item["command"])
             for name in names:
-                if "/{}/SKILL.md".format(name) in command and (name, item.get("id")) not in seen:
+                if ".agents/skills/{}/SKILL.md".format(name) in command and (name, item.get("id")) not in seen:
                     seen.add((name, item.get("id")))
                     skills.append(name)
         elif kind == "agent_message" and isinstance(item.get("text"), str):
@@ -97,10 +98,10 @@ def parse_codex(text, names):
     return skills, answer
 
 
-def command_for(host, prompt, repo):
+def command_for(host, prompt, repo, max_turns=8):
     if host == "claude":
         return ["claude", "-p", prompt, "--output-format", "stream-json", "--verbose",
-                "--max-turns", "8", "--disallowedTools", "Edit", "Write", "NotebookEdit"]
+                "--max-turns", str(max_turns), "--disallowedTools", "Edit", "Write", "NotebookEdit"]
     return ["codex", "exec", "--json", "--skip-git-repo-check", "--ephemeral", "-s", "read-only",
             "-C", str(repo), prompt]
 
@@ -128,7 +129,8 @@ def run_one(host, case, timeout):
     with tempfile.TemporaryDirectory(prefix="harness-eval-") as tmp:
         try:
             repo = prepare(case["fixture"], tmp)
-            result = subprocess.run(command_for(host, case["prompt"], repo), cwd=str(repo),
+            command = command_for(host, case["prompt"], repo, case.get("max_turns", 8))
+            result = subprocess.run(command, cwd=str(repo),
                                     stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
                                     stderr=subprocess.PIPE, timeout=timeout)
         except subprocess.TimeoutExpired:
@@ -161,6 +163,7 @@ def main(argv=None):
     parser.add_argument("--case", action="append", default=[], dest="cases")
     parser.add_argument("--jobs", type=int, default=2)
     parser.add_argument("--timeout", type=int, default=300)
+    parser.add_argument("--repeat", type=int, default=1)
     parser.add_argument("--json", dest="json_path")
     try:
         args = parser.parse_args(argv)
@@ -173,6 +176,9 @@ def main(argv=None):
         print("usage: unknown case {}".format(", ".join(missing)) if missing else "usage: --jobs must be >= 1",
               file=sys.stderr)
         return 2
+    if args.repeat < 1:
+        print("usage: --repeat must be >= 1", file=sys.stderr)
+        return 2
     hosts = HOSTS if args.host == "all" else (args.host,)
     for host in hosts:
         if shutil.which(host) is None:
@@ -180,16 +186,23 @@ def main(argv=None):
             return 2
     jobs = [(host, case) for case in cases if not args.cases or case["id"] in args.cases
             for host in hosts if host in case["hosts"]]
+    attempts = [job for job in jobs for _ in range(args.repeat)]
     with ThreadPoolExecutor(max_workers=args.jobs) as pool:
-        results = list(pool.map(lambda job: run_one(job[0], job[1], args.timeout), jobs))
-    for host, case_id, ok, detail, _answer in results:
+        results = list(pool.map(lambda job: run_one(job[0], job[1], args.timeout), attempts))
+    passed = 0
+    for start in range(0, len(results), args.repeat):
+        group = results[start:start + args.repeat]
+        successful = sum(result[2] for result in group)
+        host, case_id, ok, detail, _answer = next((result for result in group if not result[2]), group[0])
+        if args.repeat > 1:
+            detail = "{}/{} passed {}".format(successful, args.repeat, detail)
         print("{} {} {}: {}".format("PASS" if ok else "FAIL", host, case_id, detail))
-    passed = sum(1 for result in results if result[2])
-    print("EVALS: {}/{} passed".format(passed, len(results)))
+        passed += ok
+    print("EVALS: {}/{} passed".format(passed, len(jobs)))
     if args.json_path:
         rows = [{"host": h, "case": c, "pass": ok, "detail": d, "answer": a} for h, c, ok, d, a in results]
         Path(args.json_path).write_text(json.dumps(rows, indent=2) + "\n", encoding="utf-8")
-    return 0 if passed == len(results) else 1
+    return 0 if passed == len(jobs) else 1
 
 
 if __name__ == "__main__":

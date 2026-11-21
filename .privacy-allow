@@ -1,2 +1,3 @@
-# Glob and kind per line. The vendored JavaFX guide cites a placeholder home path as an anti-pattern example.
+# Glob and kind per line. The vendored JavaFX and Avalonia guides cite placeholder home paths as anti-pattern examples.
 skills/ui-design/data/stacks/javafx.csv home-path
+skills/ui-design/data/stacks/avalonia.csv home-path

@@ -6,7 +6,7 @@ from pathlib import Path
 from harness_env import ROOT
 
 sys.path.insert(0, str(ROOT / "lib"))
-from decisions import check, parse
+from decisions import check, legacy, parse
 
 
 VALID = "- D1: Keep it -- why: reason -- by: user"
@@ -137,6 +137,37 @@ class CheckTests(unittest.TestCase):
 
     def test_repository_records_are_valid(self):
         self.assertEqual(check(ROOT), [])
+        self.assertEqual(list(legacy(ROOT)), [])
+
+    def test_legacy_counts_only_decision_like_lines_outside_sections_and_fences(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            write_plans(root, {
+                "a.md": "\n".join([
+                    "## DECIDED",
+                    "- D23 (date). An old record",
+                    "- D12suffix: text",
+                    "  ````markdown",
+                    "- D4: inside a fence",
+                    "```",
+                    "- D5: still inside the fence",
+                    "  ````",
+                    "~~~",
+                    "## Decisions",
+                    "- D6: inside a tilde fence",
+                    "~~~",
+                    "- D1: Another old record",
+                    "## Decisions",
+                    VALID,
+                    "### A subsection",
+                    "- D2: Still in Decisions",
+                    "# An unrelated section",
+                    "- D3: Outside Decisions again",
+                ]),
+                "b.md": "## Decisions\n" + VALID,
+                "c.md": "- D1: Old record\n",
+            })
+            self.assertEqual(list(legacy(root)), [("docs/plans/a.md", 3), ("docs/plans/c.md", 1)])
 
     def test_roadmap_items_reference_existing_specs(self):
         documents = {

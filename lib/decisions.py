@@ -10,6 +10,8 @@ from pathlib import Path
 
 
 CANDIDATE = re.compile(r"^- D\d")
+LEGACY_CANDIDATE = re.compile(r"^- D[0-9]+\b")
+FENCE = re.compile(r"^ {0,3}(`{3,}|~{3,})(.*)$")
 NESTED_ITEM = re.compile(r"^\s+(?:[-*+]|\d+[.)])\s")
 HEAD = re.compile(r"^- D([1-9][0-9]*): (\S.*)$")
 REF = re.compile(r"^[a-z0-9][a-z0-9.-]*#D[1-9][0-9]*$")
@@ -68,24 +70,33 @@ def _parse_line(slug, number_line, line):
     return Decision(slug, int(head.group(1)), number_line, head.group(2), fields), None
 
 
+def decision_lines(lines):
+    """Yield numbered lines outside fenced code, with their section membership."""
+    in_section = False
+    fence = ""
+    for number, line in enumerate(lines, 1):
+        marker = FENCE.match(line)
+        if fence:
+            if marker and marker[1].startswith(fence) and not marker[2].strip():
+                fence = ""
+            continue
+        if marker:
+            fence = marker[1]
+            continue
+        if re.match(r"^#{1,2}[ \t]", line):
+            in_section = line.strip() == "## Decisions"
+            continue
+        yield number, line, in_section
+
+
 def parse(text, slug):
     """Parse the `## Decisions` section of one document.
 
     Returns (decisions, errors); each error is (line number, message).
     """
     decisions, errors = [], []
-    in_section = False
-    in_fence = False
     lines = text.splitlines()
-    for number, line in enumerate(lines, 1):
-        if line.startswith("```"):
-            in_fence = not in_fence
-            continue
-        if in_fence:
-            continue
-        if line.startswith("## "):
-            in_section = line.strip() == "## Decisions"
-            continue
+    for number, line, in_section in decision_lines(lines):
         if not in_section or not CANDIDATE.match(line):
             continue
         record = line.rstrip()
@@ -99,6 +110,17 @@ def parse(text, slug):
         else:
             decisions.append(decision)
     return decisions, errors
+
+
+def legacy(root):
+    """Yield (relative path, count) for decision-like lines outside Decisions."""
+    root = Path(root)
+    for path in sorted((root / "docs/plans").glob("*.md")):
+        lines = path.read_text(encoding="utf-8").splitlines()
+        count = sum(1 for _, line, in_section in decision_lines(lines)
+                    if not in_section and LEGACY_CANDIDATE.match(line))
+        if count:
+            yield path.relative_to(root).as_posix(), count
 
 
 def table_citation_problems(root, refs, successors):

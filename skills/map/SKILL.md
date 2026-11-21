@@ -1,9 +1,9 @@
 ---
-name: init
-description: "Fill or refresh a repository's AGENTS.md from the bell-harness template by reading the code: where to look for each kind of change, the constraints there and the decisions behind them, plus the commands to check work. Use when the user says \"init\", \"init-deep\", \"이 저장소 정리해줘\", \"AGENTS.md 만들어줘\", when a repository has no AGENTS.md or one that does not follow the template, or when bin/doctor reports a stale table."
+name: map
+description: "Map a repository for agents: fill or refresh its AGENTS.md from the bell-harness template by reading the code -- where to look for each kind of change, the constraints there and the decisions behind them, plus the commands to check work. Use when the user says \"map\", \"init\", \"init-deep\", \"이 저장소 정리해줘\", \"AGENTS.md 만들어줘\", when a repository has no AGENTS.md or one that does not follow the template, or when bin/doctor reports a stale table or legacy decisions."
 ---
 
-# Init
+# Map
 
 Write down what an agent needs before changing this repository and cannot see in the code: which constraints apply where, and why. The result is one root `AGENTS.md` in the harness template shape, decision records in `docs/plans/`, and a commit marker that makes the next refresh cheap. Facts the code already shows, such as a directory listing or generic advice, stay out, because every line is read in every session.
 

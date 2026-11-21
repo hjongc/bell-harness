@@ -58,9 +58,32 @@ def link_target(path):
     return Path(os.path.normpath(str(target)))
 
 
-def is_managed(path, root):
+def previous_roots(home):
+    """Yield earlier install roots from backup manifests, including restored ones."""
+    current = Path(__file__).resolve().parents[1]
+    backups = Path(home) / ".bell-harness/backups"
+    for manifest in backups.glob("*/manifest.jsonl"):
+        try:
+            with manifest.open("rb") as stream:
+                for line in stream:
+                    try:
+                        entry = json.loads(line)
+                    except ValueError:
+                        continue
+                    if not isinstance(entry, dict) or entry.get("action") != "git-config":
+                        continue
+                    value = entry.get("value")
+                    if isinstance(value, str) and value.endswith("/git/hooks"):
+                        root = Path(value).parent.parent
+                        if root != current:
+                            yield root
+        except OSError:
+            continue
+
+
+def is_managed(path, root, old_roots=()):
     target = link_target(path)
-    return target is not None and inside(target, root)
+    return target is not None and any(inside(target, base) for base in (root, *old_roots))
 
 
 def skill_names(root):
@@ -106,10 +129,10 @@ def skill_entries(home):
     return entries
 
 
-def stale_links(root, home):
+def stale_links(root, home, old_roots=()):
     """Harness links in the skill folders whose skill no longer exists."""
     names = set(skill_names(root))
-    return [e for e in skill_entries(home) if e.name not in names and is_managed(e, root)]
+    return [e for e in skill_entries(home) if e.name not in names and is_managed(e, root, old_roots)]
 
 
 def unmanaged_skills(root, home):

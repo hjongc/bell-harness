@@ -47,7 +47,7 @@ Name the exact action and wait for approval before deleting or overwriting files
 - A visual claim needs evidence: follow the `ui-polish` skill and save screenshots or exports under `docs/plans/evidence/<slug>/`.
 - Work still running in the background, including delegated tasks, means the task is not done. Collect the results, stop what you started and remove temporary files.
 - After three failed fixes of the same problem, treat it as a design question: report what you tried and your best hypothesis instead of a fourth patch.
-- Before pushing a diff larger than a single obvious fix, run `preflight`. Merge decisions happen on a laptop-sized screen; from a phone or a remote session, start, steer and check status only.
+- Run `preflight` before the first push of a spec's work and when a delegated change comes back; later small fixes rely on `scripts/check` and CI. Merge decisions happen on a laptop-sized screen; from a phone or a remote session, start, steer and check status only.
 
 ## Learning
 

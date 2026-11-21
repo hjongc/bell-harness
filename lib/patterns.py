@@ -24,6 +24,10 @@ SECRET_PATTERNS = [
     ),
 ]
 
-HOME_PATHS = [re.compile(r"/Us[e]rs/[^/\s]+"), re.compile(r"/home/[a-z][^/\s]*")]
+HOME_PATHS = [
+    re.compile(r"/Us[e]rs/[^/\s]+"),
+    re.compile(r"/home/[a-z][^/\s]*"),
+    re.compile(r"[A-Za-z]:\\Users\\[^\\/\s]+", re.IGNORECASE),
+]
 EMAIL = re.compile(r"[A-Za-z0-9._%+-]+@(?:[A-Za-z0-9-]+\.)+[A-Za-z]{2,}\b")
 EMAIL_ALLOW = ("@users.noreply.github.com", "@example.com", "@example.org", "@example.net")

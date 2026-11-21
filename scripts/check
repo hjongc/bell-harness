@@ -33,9 +33,10 @@ def file_hash(path):
 
 def snapshot_home(home):
     snapshot = {}
-    for name in (".claude/skills", ".agents/skills", ".codex/skills", ".codex/rules", ".claude/commands"):
+    for name in (".claude/skills", ".agents/skills", ".codex/skills", ".codex/rules", ".claude/commands",
+                 ".bell-harness/backups"):
         snapshot[name] = directory_snapshot(home / name)
-    for name in (".claude/settings.json", ".claude/CLAUDE.md", ".codex/AGENTS.md"):
+    for name in (".claude/settings.json", ".claude/CLAUDE.md", ".codex/AGENTS.md", ".codex/config.toml"):
         snapshot[name] = file_hash(home / name)
     command = ["git", "config", "--global", "--get", "core.hooksPath"]
     result = subprocess.run(command, stdout=subprocess.PIPE)

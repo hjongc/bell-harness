@@ -34,7 +34,7 @@ def say(text):
 
 # ---------- preflight ----------
 
-def preflight():
+def preflight(old_roots):
     errors, notes = [], []
     if not h.which("git"):
         errors.append("git not found on PATH")
@@ -60,7 +60,7 @@ def preflight():
         if (HOME / folder).is_symlink():
             errors.append("{} is a symlink; setup only manages real folders".format(HOME / folder))
     hooks = h.git_global(h.HOOKS_KEY)
-    if hooks and Path(hooks) != HOOKS:
+    if hooks and Path(hooks) != HOOKS and Path(hooks).parent.parent not in old_roots:
         errors.append("global core.hooksPath is {}, not {}".format(hooks, HOOKS))
     return errors, notes
 
@@ -71,12 +71,12 @@ def rel(path):
     return Path(path).relative_to(HOME).as_posix()
 
 
-def plan():
+def plan(old_roots):
     actions = []
     retire_paths, retire_plugins = h.retire_config(ROOT, HOME)
     for item in retire_paths:
         path = HOME / item
-        if h.exists(path) and not h.is_managed(path, ROOT):
+        if h.exists(path) and not h.is_managed(path, ROOT, old_roots):
             actions.append({"action": "retire", "path": item})
 
     settings = h.load_json(HOME / h.SETTINGS, {}) or {}
@@ -91,7 +91,7 @@ def plan():
     for link, target in h.desired_links(ROOT, HOME):
         if h.link_target(link) != target:
             actions.append({"action": "link", "path": rel(link), "target": str(target)})
-    for entry in h.stale_links(ROOT, HOME):
+    for entry in h.stale_links(ROOT, HOME, old_roots):
         actions.append({"action": "unlink", "path": rel(entry), "target": str(h.link_target(entry))})
 
     if not h.claude_md_ok(ROOT, HOME):
@@ -105,14 +105,17 @@ def plan():
     return actions
 
 
-def describe(action):
+def describe(action, old_roots):
     kind, item = action["action"], action["path"]
     if kind == "retire":
         return ["retire ~/{} (moved into the backup)".format(item)]
     if kind == "uninstall-plugin":
         return ["claude plugin uninstall {}".format(item)]
     if kind == "link":
-        note = " (replaces the existing entry)" if h.exists(HOME / item) else ""
+        path = HOME / item
+        note = ""
+        if h.exists(path) and not h.is_managed(path, ROOT, old_roots):
+            note = " (replaces the existing entry)"
         return ["link ~/{} -> {}{}".format(item, action["target"], note)]
     if kind == "unlink":
         return ["unlink ~/{} (skill removed from the harness)".format(item)]
@@ -271,27 +274,28 @@ def run_doctor():
 
 
 def install(dry_run):
-    errors, notes = preflight()
+    old_roots = set(h.previous_roots(HOME))
+    errors, notes = preflight(old_roots)
     for note in notes:
         say("setup: note: " + note)
     if errors:
         for error in errors:
             say("setup: " + error)
         return 2
-    actions = plan()
+    actions = plan(old_roots)
     if not actions:
         say("setup: nothing to do")
         return 0 if dry_run else run_doctor()
     if dry_run:
         for action in actions:
-            for line in describe(action):
+            for line in describe(action, old_roots):
                 say("would " + line)
         return 0
     backup = new_backup()
     done = 0
     try:
         for action in actions:
-            lines = describe(action)  # describe before applying: it reads the state the action replaces
+            lines = describe(action, old_roots)  # describe before applying: it reads the state the action replaces
             apply(action, backup)
             for line in lines:
                 say(line)

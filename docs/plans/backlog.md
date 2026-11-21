@@ -13,64 +13,7 @@ Suggested order, by what a user would hit first:
 
 ## Open
 
-### B1: Moving the harness repository blocks both setup and doctor (medium)
-- Area: README "Install", `bin/setup` preflight.
-- Evidence: in a temporary home, run `bin/setup`, rename the harness directory, run `bin/setup --dry-run` from the new location. Output: `setup: global core.hooksPath is <old>/git/hooks, not <new>/git/hooks`, exit 2. `bin/doctor` then reports every link as FAIL and says to run `bin/setup`, which refuses. Links into the old location also stop counting as managed, so they would be backed up as foreign entries.
-- Why it matters: the only way out is to unset `core.hooksPath` by hand, which no document mentions. A user who reorganizes folders or clones to a different path on a second machine after copying their home hits this.
-- Direction: treat a `core.hooksPath` or link whose recorded value appears in an earlier backup manifest as the harness's own and replace it; or document `git config --global --unset core.hooksPath` in the README until then.
-
-### B2: The harness skill `init` shares its name with Claude Code's built-in `/init` (medium)
-- Area: `skills/init`, `evals/cases/route-init.json`.
-- Evidence: Claude Code ships a built-in `/init` command that writes a CLAUDE.md. In a temporary repository, `claude -p "Load the skill named init with the Skill tool..."` returned the harness heading `# Init`, so the Skill tool resolves to the harness skill. What a user gets by typing `/init` could not be determined (`claude -p "/init"` printed nothing identifiable within two turns). Earlier, before the harness skill existed, `/init` ran the built-in.
-- Why it matters: the user may type `/init` expecting the harness behavior and get a generated CLAUDE.md, which the harness now treats as redundant (v1.1-flow-init#D6). The routing eval only checks that a skill named `init` was called, not which body loaded.
-- Direction: check interactively what `/init` runs; if the built-in wins, rename the skill (for example `map`) or state the difference in its description.
-
-### B3: Eval runs are not isolated from the real harness repository (medium)
-- Area: `evals/run.py:81` (`parse_codex`), `evals/run.py:100` (`command_for`).
-- Evidence: in the full live run of 2026-11-21, `codex route-eval` failed with `skills=[eval, spec, spec]`: Codex read the harness's own `skills/spec/SKILL.md` while investigating, and the grader counts any command containing `/<name>/SKILL.md` as a load. The fixture copy lives in a temporary directory, but the agent can read the whole disk.
-- Why it matters: results depend on what happens to be in the working harness repository, and a correct run can fail.
-- Direction: for Codex, count only reads under the skills directories it loads from (`.agents/skills/`), and treat reads of other paths as file reads.
-
-### B4: Every eval case gets the same eight-turn limit and one attempt (small)
-- Area: `evals/run.py:102` (`--max-turns 8`).
-- Evidence: `claude away-gate-ko` returned an empty answer once and passed on rerun; the case asks for multi-step work while writes are disabled. A single run cannot tell a flaky case from a broken one (three flakes seen in 62 live runs across two days).
-- Direction: an optional `max_turns` per case, and a `--repeat N` flag that reports pass counts.
-
-### B5: A plugin skill whose name ends in a harness skill name counts as that skill (small)
-- Area: `evals/run.py:68` (`name.split(":")[-1]`).
-- Evidence: by reading the code: `Skill(skill="other-plugin:spec")` is recorded as `spec`. No such plugin is installed on this machine, so it has not happened.
-- Direction: accept only the bare name, or the bare name with a known harness prefix.
-
-### B6: The plan-mode rule collides with unattended work on approved specs (medium)
-- Area: `global/CLAUDE.md:9`, `skills/away/SKILL.md`, `global/AGENTS.md:37`.
-- Evidence: by reading the rules together. CLAUDE.md says to agree on a plan in plan mode before editing any work of three or more steps; plan mode waits for the user's approval. The roadmap rule and the away skill say an item whose spec is approved runs without asking. An agent that follows the first rule while the user is away stops at the first item.
-- Direction: one clause in CLAUDE.md that an approved spec is the agreed plan, so plan mode is for work that has no approved spec.
-
-### B7: The preflight rule is not being followed (small, about use rather than code)
-- Area: `global/AGENTS.md:50`.
-- Evidence: the rule says to run `preflight` before pushing any diff larger than a single obvious fix. Between v1.1 and this audit, more than twenty multi-file commits were pushed to this repository and `preflight` ran once, before the first publication. Review happened through `scripts/check`, spec comparison and CI instead.
-- Why it matters: a rule that is routinely skipped teaches agents that global rules are optional.
-- Direction: either narrow the rule to what is actually wanted (for example, delegated changes and first pushes of a spec) or keep it and add a pre-push reminder; the user decides which.
-
-### B8: Claude's deny rules catch the short bypass flag only in first position (small, not verified live)
-- Area: `config/claude-settings.json` (`Bash(git commit -n:*)`).
-- Evidence: by reading the patterns. `--no-verify` is matched anywhere by `Bash(git * --no-verify*)`, but `-n` is matched only directly after `git commit`, so `git commit -a -n -m ...` or `git -C <dir> commit -n` matches no rule. A live test was blocked by the session's own permission classifier, so this is unconfirmed. Codex rules have the same prefix limit (v1.2-field-fixes#D7).
-- Direction: decide whether a broader pattern is worth its false positives (a message containing ` -n`), or rely on `bin/doctor --project`, which lists commits the hook would have rejected.
-
-### B9: The privacy scan does not recognize Windows home paths (small)
-- Area: `lib/patterns.py` (`HOME_PATHS`).
-- Evidence: `python3 lib/privacy.py <dir>` on a file with ten sample lines flagged a macOS home path, a Linux home path, an email, a key and a WSL-mounted Windows home path, but not a native Windows path of the form `C:\Users\<name>\code`. Windows is a stated non-goal, so this matters only for pasted paths.
-- Direction: add a `[A-Za-z]:\\Users\\<name>` pattern when Windows support is considered.
-
-### B10: Decision logs written before the harness are invisible to the checker (small)
-- Area: `lib/decisions.py`, `skills/init`.
-- Evidence: running `bin/doctor --project` read-only over the local repositories gave no crash and two kinds of warning. One repository has records without a `why` field (true positives). Another has a new record whose `supersedes` points at an entry in an older log that uses a `## DECIDED` heading and `- D23 (date). ...` lines; doctor reports `supersedes unknown decision`, which is accurate but does not say why.
-- Direction: when a `docs/plans` file has decision-like lines outside a `## Decisions` section, have doctor suggest running the `init` skill to migrate them. Until then the fix per repository is to run `init`.
-
-### B11: The real-home guard does not watch the harness's own state folder (small)
-- Area: `scripts/check` (`snapshot_home`).
-- Evidence: by reading the code. The guard snapshots the skill, rules and command folders, three instruction and settings files and the global `core.hooksPath`. It does not include `~/.bell-harness/backups`, `~/.codex/config.toml` or other global git keys. A test that wrote only there would pass the guard. Every current test goes through `harness_env.make_env`, so nothing does this today.
-- Direction: add the backups folder listing and the Codex config hash to the snapshot.
+None. B1-B11 were decided in v1.5-audit-fixes.
 
 ## Fixed during the audit
 - `bin/setup --restore` crashed with a traceback when `~/.claude/settings.json` had become invalid JSON; it now skips the settings with a message and undoes the rest (`tests/test_setup.py::test_restore_survives_invalid_settings`).

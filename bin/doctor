@@ -176,7 +176,7 @@ def check_sources_table(report, project, lines):
                 report.line("WARN", "stale table", '{} (row "{}")'.format(token, row.strip()))
 
     if not sha:
-        report.line("WARN", "table check", "no Checked at line (run the init skill)")
+        report.line("WARN", "table check", "no Checked at line (run the map skill)")
         return
     git = ["git", "-C", str(project)]
     code, commit = run(git + ["rev-parse", "--verify", "--end-of-options", sha + "^{commit}"])
@@ -207,7 +207,7 @@ def check_sources_table(report, project, lines):
     if removed or added:
         problems = ["removed under a row: " + ", ".join(removed[:5])] if removed else []
         problems += ["new folder without a row: " + ", ".join(added[:5])] if added else []
-        report.line("WARN", "table check", "since {}: {}; rerun the init skill".format(sha, "; ".join(problems)))
+        report.line("WARN", "table check", "since {}: {}; rerun the map skill".format(sha, "; ".join(problems)))
     else:
         report.line("PASS", "table check", "table still matches the tree since " + sha)
 
@@ -262,6 +262,10 @@ def check_project(report, project):
         report.line("WARN", "stale decision", problem)
     if not problems:
         report.line("PASS", "decisions", "records valid")
+    for path, count in decisions.legacy(project):
+        report.line("WARN", "legacy decisions",
+                    '{} has {} decision-like line(s) outside "## Decisions" (run the map skill to migrate)'.format(
+                        path, count))
 
 
 def check_commits(report, project):

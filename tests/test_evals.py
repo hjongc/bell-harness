@@ -68,9 +68,49 @@ class EvalsTest(unittest.TestCase):
         self.assertIn("PASS codex route-probe", result.stdout)
         self.assertIn("EVALS: 2/2 passed", result.stdout)
 
-    def test_plugin_prefix_is_stripped(self):
-        self.both(["x:probe"], "ok")
-        self.assertEqual(self.run_evals("--case", "route-probe", "--host", "claude").returncode, 0)
+    def test_plugin_skill_is_ignored(self):
+        self.stub("claude", ["other:spec"], "ok")
+        result = self.run_evals("--case", "route-spec", "--host", "claude")
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertIn("FAIL claude route-spec: skills=[] expected skill spec", result.stdout)
+
+    def test_codex_ignores_reads_outside_installed_skills(self):
+        self.stub("codex", ["spec"], "ok")
+        events = self.tmp / "codex-events.txt"
+        events.write_text(events.read_text(encoding="utf-8").replace("~/.agents/skills", "elsewhere/skills"),
+                          encoding="utf-8")
+        result = self.run_evals("--case", "route-spec", "--host", "codex")
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertIn("FAIL codex route-spec: skills=[] expected skill spec", result.stdout)
+
+    def test_claude_max_turns_reaches_host(self):
+        events = claude_events(["away"], "approval")
+        write_stub(self.tmp, "claude", "#!/usr/bin/env python3\nimport sys\n"
+                   "turns = sys.argv[sys.argv.index('--max-turns') + 1]\n"
+                   "sys.stdout.write({!r} if turns == '15' else '')\n".format(events))
+        result = self.run_evals("--case", "away-gate-ko", "--host", "claude")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def test_repeat_reports_failed_pair_and_records_all_attempts(self):
+        marker = self.tmp / "first-attempt"
+        report = self.tmp / "attempts.json"
+        write_stub(self.tmp, "claude", "#!/usr/bin/env python3\nfrom pathlib import Path\n"
+                   "marker = Path({!r})\n"
+                   "print({!r} if marker.exists() else {!r})\n"
+                   "marker.touch()\n".format(str(marker), claude_events([], "second"),
+                                             claude_events(["probe"], "first")))
+        result = self.run_evals("--case", "route-probe", "--host", "claude", "--repeat", "2",
+                                "--jobs", "1", "--json", str(report))
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertEqual(result.stdout.splitlines(), [
+            "FAIL claude route-probe: 1/2 passed skills=[] expected skill probe",
+            "EVALS: 0/1 passed",
+        ])
+        rows = json.loads(report.read_text(encoding="utf-8"))
+        self.assertEqual([(row["host"], row["case"], row["pass"], row["answer"]) for row in rows], [
+            ("claude", "route-probe", True, "first"),
+            ("claude", "route-probe", False, "second"),
+        ])
 
     def test_wrong_skill_fails(self):
         self.both(["spec"], "ok")
@@ -128,9 +168,9 @@ class EvalsTest(unittest.TestCase):
         self.assertEqual(result.stdout.count("PASS"), 1)
         self.assertNotIn("route-probe", result.stdout)
 
-    def test_init_and_flow_cases(self):
+    def test_map_and_flow_cases(self):
         for case, skills, answer in (
-            ("route-init", ["init"], "프로젝트 지침을 정리합니다."),
+            ("route-init", ["map"], "프로젝트 지침을 정리합니다."),
             ("flow-next", [], "다음 작업은 add-changelog입니다."),
             ("flow-gate", [], "게시 승인을 부탁드립니다."),
         ):
@@ -148,6 +188,7 @@ class EvalsTest(unittest.TestCase):
         self.both([], "x")
         self.assertEqual(self.run_evals("--case", "nope").returncode, 2)
         self.assertEqual(self.run_evals("--bogus").returncode, 2)
+        self.assertEqual(self.run_evals("--repeat", "0").returncode, 2)
         (self.tmp / "bin/codex").unlink()
         self.assertEqual(self.run_evals("--case", "route-probe").returncode, 2)
 

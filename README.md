@@ -42,6 +42,8 @@ bin/doctor --discovery          # ask claude and codex which skills they actuall
 bin/setup --restore <id>        # undo one backup (or: all), skipping anything changed since setup
 ```
 
+If you move the harness repository, run `bin/setup` from its new location to repair the links and hooks path.
+
 Restore undoes settings key by key, so settings changed after setup survive. Uninstalled plugins are not reinstalled automatically; restore prints the `claude plugin install` command.
 
 Codex rules match command prefixes, and `bin/doctor --project` lists commits made around the hooks that the hooks would reject.
@@ -50,10 +52,10 @@ Codex rules match command prefixes, and `bin/doctor --project` lists commits mad
 
 | Skill | Use it to |
 |---|---|
-| `init` | Fill or refresh a project's AGENTS.md and record the decisions behind its constraints |
+| `map` | Fill or refresh a project's AGENTS.md and record the decisions behind its constraints |
 | `probe` | Pressure-test an idea or feature with one hard question at a time and record the design |
 | `spec` | Turn an agreed design into a spec another agent can execute without judgment calls |
-| `preflight` | Review a diff against its spec before pushing |
+| `preflight` | Review a diff before the first push of a spec's work and when a delegated change comes back |
 | `eval` | Compare a prompt, skill or model change on fixed cases |
 | `ui-design` | Choose style, palette, typography and layout from local design data, including Korean-market conventions |
 | `ui-polish` | Inspect the rendered UI (and PDFs) at three widths against a baseline before calling it done |
@@ -81,15 +83,17 @@ Ask what is queued before you leave, then set a goal for the range you want the 
 
 ## Start a project
 
-Copy `templates/AGENTS.md` into the project and fill it in, or ask an agent to run the `init` skill. A project can allow a Korean commit summary with a `.harness.json` file (`{"commit": {"allow_hangul": true}}`); the hook reads it from the last commit, so a commit cannot relax its own rules.
+Copy `templates/AGENTS.md` into the project and fill it in, or ask an agent to run the `map` skill. A project can allow a Korean commit summary with a `.harness.json` file (`{"commit": {"allow_hangul": true}}`); the hook reads it from the last commit, so a commit cannot relax its own rules.
 
 ## Evals
 
 ```sh
-python3 evals/run.py [--host claude|codex|all] [--case <id>]... [--jobs N] [--timeout S] [--json <file>]
+python3 evals/run.py [--host claude|codex|all] [--case <id>]... [--jobs N] [--timeout S] [--repeat N] [--json <file>]
 ```
 
 Each of the 20 cases sends a fixed prompt to the real `claude` and `codex` commands in a temporary copy of a fixture repository (`evals/fixtures/`), then grades which harness skill was loaded and regular expressions over the final answer. Ten routing cases use English and Korean prompts. They cover design, spec, eval, project initialization, preflight and small edits that should load no skill. Six memory cases check that a recorded decision is applied, an unrelated task stays quiet about it, a superseded decision loses to the newer one, a missing reason is reported as missing, a Korean question retrieves the English decision and its rationale, and a single observation stays optional. Two flow cases check roadmap order and the approval request before publishing. Two away cases check skill routing when you ask what is queued or ask the agent to continue a roadmap with an approval gate. The runner calls paid models, so it is not part of `scripts/check`. Run it after installing the harness and whenever a model or an instruction changes.
+
+Use `--repeat N` to run each host and case N times. A host-case pair passes when every attempt passes, and `--json` records every attempt. A case can set `max_turns` to override Claude's default of eight turns.
 
 ## Develop
 
