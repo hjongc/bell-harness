@@ -94,6 +94,54 @@ def parse(text, slug):
     return decisions, errors
 
 
+def table_citation_problems(root, refs, successors):
+    agents = root / "AGENTS.md"
+    if not agents.is_file():
+        return []
+    problems = []
+    in_section = False
+    in_fence = False
+    for number, raw in enumerate(agents.read_text(encoding="utf-8").splitlines(), 1):
+        line = raw.strip()
+        if line.startswith("```"):
+            in_fence = not in_fence
+        if in_fence:
+            continue
+        if re.match(r"^#{1,2} ", line):
+            in_section = line == "## Sources of truth"
+        if not in_section or "|" not in line:
+            continue
+        cells = re.split(r"(?<!\\)\|", line.strip("|"))
+        if len(cells) != 3:
+            continue
+        cited = set(re.findall(r"(?<![\w./-])[a-z0-9][a-z0-9.-]*#D[1-9][0-9]*\b", cells[2]))
+        location = "AGENTS.md:{}: ".format(number)
+        for ref in sorted(cited):
+            if ref not in refs:
+                problems.append(location + "unknown decision " + ref)
+                continue
+            if ref not in successors:
+                continue
+            active = set()
+            pending = [ref]
+            visited = set()
+            while pending:
+                current = pending.pop()
+                if current in visited:
+                    continue
+                visited.add(current)
+                if current in successors:
+                    pending.extend(successors[current])
+                else:
+                    active.add(current)
+            missing = sorted(active - cited)
+            if missing:
+                problems.append(location + "{} superseded; cite {}".format(ref, ", ".join(missing)))
+            elif not active:
+                problems.append(location + ref + " has no active successor")
+    return problems
+
+
 def check(root):
     """Return a list of problems in root/docs/plans/*.md, each 'path:line: message'."""
     root = Path(root)
@@ -114,25 +162,26 @@ def check(root):
         decisions.extend(found)
 
     refs = set(decision.ref for decision in decisions)
-    superseded = set()
+    successors = {}
     for decision in decisions:
         for ref in decision.supersedes:
             if ref == decision.ref:
                 problems.append("{}:{}: {} supersedes itself".format(
                     decision.source, decision.line, ref))
                 continue
-            superseded.add(ref)
+            successors.setdefault(ref, set()).add(decision.ref)
             if ref not in refs:
                 problems.append("{}:{}: supersedes unknown decision {}".format(
                     decision.source, decision.line, ref))
     for decision in decisions:
-        if decision.ref in superseded:
+        if decision.ref in successors:
             continue
         for item in decision.paths:
             if not (root / item).exists():
                 problems.append("{}:{}: {} cites missing path {}".format(
                     decision.source, decision.line, decision.ref, item))
 
+    problems.extend(table_citation_problems(root, refs, successors))
     roadmap = plans / "roadmap.md"
     if roadmap.is_file():
         for number, line in enumerate(roadmap.read_text(encoding="utf-8").splitlines(), 1):

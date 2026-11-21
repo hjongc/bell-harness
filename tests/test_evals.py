@@ -107,6 +107,20 @@ class EvalsTest(unittest.TestCase):
         self.both([], "A shorter sentence.")
         self.assertEqual(self.run_evals("--case", "memory-quiet").returncode, 0)
 
+    def test_memory_evidence_and_authority(self):
+        for case, answer, status in (
+            ("memory-reason-ko", "hooks#D1에 따르면 시스템 Python 3.9를 사용합니다.", 0),
+            ("memory-reason-ko", "hooks#D1: Python 3.9", 1),
+            ("memory-reason-ko", "시스템 Python 3.9", 1),
+            ("memory-observed", "hooks#D2 observed optional", 0),
+            ("memory-observed", "hooks#D2 observed required", 1),
+            ("memory-observed", "hooks#D2 user optional", 1),
+        ):
+            with self.subTest(case=case, answer=answer):
+                self.both([], answer)
+                result = self.run_evals("--case", case)
+                self.assertEqual(result.returncode, status, result.stdout)
+
     def test_case_filter(self):
         self.both([], "JSON")
         result = self.run_evals("--case", "memory-superseded", "--host", "codex")
@@ -139,7 +153,7 @@ class EvalsTest(unittest.TestCase):
 
     def test_case_files_are_consistent(self):
         files = sorted((ROOT / "evals/cases").glob("*.json"))
-        self.assertEqual(len(files), 18)
+        self.assertEqual(len(files), 20)
         for path in files:
             case = json.loads(path.read_text(encoding="utf-8"))
             self.assertEqual(case["id"], path.stem)

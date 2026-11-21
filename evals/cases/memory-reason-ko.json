@@ -1,0 +1,10 @@
+{
+  "id": "memory-reason-ko",
+  "fixture": "memory",
+  "hosts": [
+    "claude",
+    "codex"
+  ],
+  "prompt": "데스크톱에서 커밋할 때 훅 코드의 문법을 제한하는 이유가 뭐야? 한 줄에 결정 ID, 지원 버전, 이유를 써줘. 파일은 수정하지 마.",
+  "expect_answer": "(?is)\\A(?=.*(?<![a-z0-9_-])hooks#D1(?![a-z0-9_-]))(?=.*(?<![0-9])3\\.9(?![0-9]))(?=.*(?:system(?:[ -](?:provided|installed))?[ -](?:python|interpreter)|시스템.{0,16}(?:파이썬|Python|인터프리터))).+"
+}

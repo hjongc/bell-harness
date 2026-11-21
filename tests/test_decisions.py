@@ -103,6 +103,25 @@ class CheckTests(unittest.TestCase):
         self.assertIn("docs/plans/a.md:2: a#D1 supersedes itself", problems)
         self.assertIn("docs/plans/a.md:2: a#D1 cites missing path gone.txt", problems)
 
+    def test_sources_table_tracks_current_decisions(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            write_plans(root, {"a.md": "## Decisions\n" + VALID
+                               + "\n- D2: Second -- why: changed -- by: user -- supersedes: a#D1"
+                               + "\n- D3: Third -- why: changed -- by: user -- supersedes: a#D2\n"})
+            agents = root / "AGENTS.md"
+            table = "## Sources of truth\n| Task | `example` | {} |\n## Commands\n| x | x | gone#D9 |"
+            agents.write_text(table.format("a#D1 and gone#D1"), encoding="utf-8")
+            self.assertEqual(check(root), ["AGENTS.md:2: a#D1 superseded; cite a#D3",
+                                           "AGENTS.md:2: unknown decision gone#D1"])
+            agents.write_text(table.format("a#D3 replaces a#D1"), encoding="utf-8")
+            self.assertEqual(check(root), [])
+            with (root / "docs/plans/a.md").open("a") as extra:
+                extra.write("- D4: Fourth -- why: changed -- by: user -- supersedes: a#D3\n")
+            path = root / "docs/plans/a.md"
+            path.write_text(path.read_text().replace(VALID, VALID + " -- supersedes: a#D4"))
+            self.assertIn("AGENTS.md:2: a#D1 has no active successor", check(root))
+
     def test_repository_records_are_valid(self):
         self.assertEqual(check(ROOT), [])
 

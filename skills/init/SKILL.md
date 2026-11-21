@@ -21,7 +21,7 @@ Write down what an agent needs before changing this repository and cannot see in
 
 ## Refresh
 
-Run `bin/doctor --project .`. Its `stale table` and `table check` lines name the rows to recheck: a path that no longer exists, a file removed under a row, or a new top-level folder without a row. Update those rows and their decisions, then move the marker to the new HEAD in the same commit. When doctor reports nothing and the user names no changed constraint, say so and change nothing.
+Run `bin/doctor --project .`. Its `stale table` and `table check` lines name the rows to recheck: a path that no longer exists, a file removed under a row, or a new top-level folder without a row. Update those rows and their decisions, then move the marker to the new HEAD in the same commit. For a stale decision citation in a Sources of truth row, read its successor and check the cited constraint against the current checkout. Update the wording as well as the id. If the cited decision is missing or has no active successor, report the gap and keep the reason open. When doctor reports nothing and the user names no changed constraint, say so and change nothing.
 
 ## Scope
 

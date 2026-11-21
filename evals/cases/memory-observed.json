@@ -1,0 +1,10 @@
+{
+  "id": "memory-observed",
+  "fixture": "memory",
+  "hosts": [
+    "claude",
+    "codex"
+  ],
+  "prompt": "Does the project require clearing the local cache before retrying a hook? Reply with exactly the decision id followed by its recorded authority (user or observed) and whether this step is required (required or optional), separated by spaces. Do not edit files.",
+  "expect_answer": "(?i)\\A\\s*hooks#D2\\s+observed\\s+optional\\s*\\Z"
+}

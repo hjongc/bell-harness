@@ -70,6 +70,10 @@ One checkable condition, for example: `scripts/check` exits 0 AND acceptance 1-4
 - Keep the spec under about 150 lines. A longer one usually means two specs.
 - Name no model and no reasoning effort in the spec; the person or tool that runs it chooses.
 
+## Cross-session work
+
+When pausing unfinished implementation, update the active spec with the working revision, the last verification command and result, and the next unchecked acceptance item. Include decision ids for any constraint the next session needs. On resume, compare the revision and local diff with the checkpoint before using an earlier result. Replace the checkpoint as work progresses.
+
 ## Unattended runs
 
 When the spec will run without a person watching (overnight, a goal loop), add:

@@ -69,7 +69,9 @@ Decisions live in the spec that made them, one line each:
 - D3: <decision> -- why: <reason> -- by: user|observed [-- paths: <path> ...] [-- supersedes: <slug>#D1]
 ```
 
-A project's AGENTS.md has a Sources of truth table (task, where to look, constraints and the decision ids behind them), and the global instructions tell both tools to grep `docs/plans` before changing behavior. `python3 lib/decisions.py` and `bin/doctor --project` report malformed records and decisions that cite deleted paths. There is no automatic recall hook; see `docs/plans/v1-memory.md` for why.
+A project's AGENTS.md has a Sources of truth table (task, where to look, constraints and the decision ids behind them), and the global instructions tell both tools to grep `docs/plans` before changing behavior. `python3 lib/decisions.py` and `bin/doctor --project` report malformed records, decisions that cite deleted paths, and table rows that cite missing or superseded decisions. A row may keep a historical citation alongside its active replacement. There is no automatic recall hook; see `docs/plans/v1-memory.md` for why.
+
+For a cross-session handoff, keep the last verified command and its result, outstanding work and the relevant decision ids in the active spec. On resume, check the current checkout before relying on the earlier result. Keep personal preferences in private local instructions.
 
 `docs/plans/roadmap.md` lists specs in work order. The next unchecked item can start when its spec says `Status: approved`. Actions listed in the global approval rules still need approval.
 
@@ -87,7 +89,7 @@ Copy `templates/AGENTS.md` into the project and fill it in, or ask an agent to r
 python3 evals/run.py [--host claude|codex|all] [--case <id>]... [--jobs N] [--timeout S] [--json <file>]
 ```
 
-Each of the 18 cases sends a fixed prompt to the real `claude` and `codex` commands in a temporary copy of a fixture repository (`evals/fixtures/`), then grades which harness skill was loaded and regular expressions over the final answer. Ten routing cases use English and Korean prompts. They cover design, spec, eval, project initialization, preflight and small edits that should load no skill. Four memory cases check that a recorded decision is applied, an unrelated task stays quiet about it, a superseded decision loses to the newer one, and a missing reason is reported as missing. Two flow cases check roadmap order and the approval request before publishing. Two away cases check skill routing when you ask what is queued or ask the agent to continue a roadmap with an approval gate. The runner calls paid models, so it is not part of `scripts/check`. Run it after installing the harness and whenever a model or an instruction changes.
+Each of the 20 cases sends a fixed prompt to the real `claude` and `codex` commands in a temporary copy of a fixture repository (`evals/fixtures/`), then grades which harness skill was loaded and regular expressions over the final answer. Ten routing cases use English and Korean prompts. They cover design, spec, eval, project initialization, preflight and small edits that should load no skill. Six memory cases check that a recorded decision is applied, an unrelated task stays quiet about it, a superseded decision loses to the newer one, a missing reason is reported as missing, a Korean question retrieves the English decision and its rationale, and a single observation stays optional. Two flow cases check roadmap order and the approval request before publishing. Two away cases check skill routing when you ask what is queued or ask the agent to continue a roadmap with an approval gate. The runner calls paid models, so it is not part of `scripts/check`. Run it after installing the harness and whenever a model or an instruction changes.
 
 ## Develop
 
