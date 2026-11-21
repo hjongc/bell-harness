@@ -1,3 +1,3 @@
 # Decisions waiting for approval
 
-None. The four roadmap choices were approved.
+None. All four approved roadmap items are complete.
