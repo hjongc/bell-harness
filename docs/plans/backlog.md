@@ -66,6 +66,7 @@ Findings from audit passes over the harness. Each entry has evidence and a size.
 - A project whose AGENTS.md was copied from the template and left unfilled passed `bin/doctor --project` with only an odd `unknown commit <short commit>` warning. Doctor now warns that template placeholders remain (`tests/test_doctor.py::test_unfilled_template_is_reported`).
 - `bin/setup` printed every planned action as if done before applying any, so after a mid-run failure the output did not show how far it got. It now prints each action after it succeeds and reports `stopped after N of M actions` (`tests/test_setup.py::test_failed_action_stops_and_can_be_undone`, which also covers the failure-then-restore path that had no test).
 - `lib/decisions.py` read only the first line of a decision record, so records hard-wrapped at 80 columns in a real project were reported as `missing field 'by'` (six false warnings from `bin/doctor --project`). Indented continuation lines are now part of the record (`tests/test_decisions.py::test_accepts_a_record_wrapped_onto_indented_lines`, v1.4-memory-recall#D2).
+- The wrapped-record fix above absorbed a nested list under a record and then reported a bad `by` value. Continuation now stops at a nested list item (`tests/test_decisions.py::test_nested_list_under_a_record_is_not_part_of_it`). Found in pass 13 by probing the pass 11 change.
 
 ## Covered areas
 - Pass 1: README against real behavior (install, check and undo, eval case count). Case count and commands match.
@@ -80,3 +81,4 @@ Findings from audit passes over the harness. Each entry has evidence and a size.
 - Pass 10: untested branches of `bin/setup` (a failing plugin uninstall, then restore). Restore worked; the output problem above was fixed.
 - Pass 11: the updated doctor against this machine and against the first real project (read-only). One false-positive bug fixed.
 - Pass 12: `bin/doctor --project` read-only across every local repository. No crash and no false positive after the pass 11 fix; one finding recorded.
+- Pass 13: regression probes of the fixes made during this audit. One regression found and fixed.

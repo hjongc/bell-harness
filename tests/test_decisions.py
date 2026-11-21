@@ -48,6 +48,12 @@ class ParseTests(unittest.TestCase):
         self.assertEqual([(d.ref, d.why, d.by, d.paths) for d in decisions],
                          [("spec#D1", "a long reason", "observed", ["lib"]), ("spec#D2", "r", "user", [])])
 
+    def test_nested_list_under_a_record_is_not_part_of_it(self):
+        text = "## Decisions\n- D1: Keep -- why: r -- by: user\n  - follow-up note\n  1. numbered note\n- D2: Next -- why: r -- by: observed\n"
+        decisions, errors = parse(text, "spec")
+        self.assertEqual(errors, [])
+        self.assertEqual([(d.ref, d.by) for d in decisions], [("spec#D1", "user"), ("spec#D2", "observed")])
+
     def test_rejects_malformed_lines(self):
         for line in (
             "- D1: Keep it -- by: user",

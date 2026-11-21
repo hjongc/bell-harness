@@ -10,6 +10,7 @@ from pathlib import Path
 
 
 CANDIDATE = re.compile(r"^- D\d")
+NESTED_ITEM = re.compile(r"^\s+(?:[-*+]|\d+[.)])\s")
 HEAD = re.compile(r"^- D([1-9][0-9]*): (\S.*)$")
 REF = re.compile(r"^[a-z0-9][a-z0-9.-]*#D[1-9][0-9]*$")
 ROADMAP_ITEM = re.compile(r"^- \[( |x)\] ([a-z0-9][a-z0-9.-]*): ")
@@ -89,7 +90,7 @@ def parse(text, slug):
             continue
         record = line.rstrip()
         for extra in lines[number:]:  # a record may be hard-wrapped onto indented lines
-            if not extra.strip() or not extra[:1].isspace():
+            if not extra.strip() or not extra[:1].isspace() or NESTED_ITEM.match(extra):
                 break
             record += " " + extra.strip()
         decision, error = _parse_line(slug, number, record)
