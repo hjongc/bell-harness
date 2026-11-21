@@ -82,3 +82,4 @@ Findings from audit passes over the harness. Each entry has evidence and a size.
 - Pass 11: the updated doctor against this machine and against the first real project (read-only). One false-positive bug fixed.
 - Pass 12: `bin/doctor --project` read-only across every local repository. No crash and no false positive after the pass 11 fix; one finding recorded.
 - Pass 13: regression probes of the fixes made during this audit. One regression found and fixed.
+- Pass 14: regression probes of the other audit fixes (setup output order and the "replaces" note, the placeholder warning on filled files, pattern paths, a file passed as a project). No finding.
