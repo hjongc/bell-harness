@@ -41,6 +41,13 @@ class ParseTests(unittest.TestCase):
         self.assertEqual(decision.paths, ["lib", "x"])
         self.assertEqual(decision.supersedes, ["other#D2"])
 
+    def test_accepts_a_record_wrapped_onto_indented_lines(self):
+        text = "## Decisions\n- D1: Keep it -- why: a long\n  reason -- by: observed\n  -- paths: lib\n\n- D2: Next -- why: r -- by: user\n"
+        decisions, errors = parse(text, "spec")
+        self.assertEqual(errors, [])
+        self.assertEqual([(d.ref, d.why, d.by, d.paths) for d in decisions],
+                         [("spec#D1", "a long reason", "observed", ["lib"]), ("spec#D2", "r", "user", [])])
+
     def test_rejects_malformed_lines(self):
         for line in (
             "- D1: Keep it -- by: user",

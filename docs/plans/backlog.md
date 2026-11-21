@@ -60,6 +60,7 @@ Findings from audit passes over the harness. Each entry has evidence and a size.
 - `v1-skills#D1` still said the harness has six skills while eight ship, and nothing superseded it; `AGENTS.md` cited it. Added `v1.3-away#D7` superseding it and updated the table. The citation check from v1.4 confirms the fix: with the old table it reports `v1-skills#D1 superseded; cite v1.3-away#D7`.
 - A project whose AGENTS.md was copied from the template and left unfilled passed `bin/doctor --project` with only an odd `unknown commit <short commit>` warning. Doctor now warns that template placeholders remain (`tests/test_doctor.py::test_unfilled_template_is_reported`).
 - `bin/setup` printed every planned action as if done before applying any, so after a mid-run failure the output did not show how far it got. It now prints each action after it succeeds and reports `stopped after N of M actions` (`tests/test_setup.py::test_failed_action_stops_and_can_be_undone`, which also covers the failure-then-restore path that had no test).
+- `lib/decisions.py` read only the first line of a decision record, so records hard-wrapped at 80 columns in a real project were reported as `missing field 'by'` (six false warnings from `bin/doctor --project`). Indented continuation lines are now part of the record (`tests/test_decisions.py::test_accepts_a_record_wrapped_onto_indented_lines`, v1.4-memory-recall#D2).
 
 ## Covered areas
 - Pass 1: README against real behavior (install, check and undo, eval case count). Case count and commands match.
@@ -72,3 +73,4 @@ Findings from audit passes over the harness. Each entry has evidence and a size.
 - Pass 8: privacy scan with sample lines and the Claude deny patterns. Two small findings recorded.
 - Pass 9: the project template through `bin/doctor`, and what `scripts/check` covers (privacy and decision checks run inside the test suite). One bug fixed.
 - Pass 10: untested branches of `bin/setup` (a failing plugin uninstall, then restore). Restore worked; the output problem above was fixed.
+- Pass 11: the updated doctor against this machine and against the first real project (read-only). One false-positive bug fixed.

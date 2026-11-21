@@ -75,7 +75,8 @@ def parse(text, slug):
     decisions, errors = [], []
     in_section = False
     in_fence = False
-    for number, line in enumerate(text.splitlines(), 1):
+    lines = text.splitlines()
+    for number, line in enumerate(lines, 1):
         if line.startswith("```"):
             in_fence = not in_fence
             continue
@@ -86,7 +87,12 @@ def parse(text, slug):
             continue
         if not in_section or not CANDIDATE.match(line):
             continue
-        decision, error = _parse_line(slug, number, line.rstrip())
+        record = line.rstrip()
+        for extra in lines[number:]:  # a record may be hard-wrapped onto indented lines
+            if not extra.strip() or not extra[:1].isspace():
+                break
+            record += " " + extra.strip()
+        decision, error = _parse_line(slug, number, record)
         if error:
             errors.append((number, error))
         else:
