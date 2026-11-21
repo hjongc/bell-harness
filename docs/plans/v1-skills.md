@@ -13,6 +13,8 @@ The harness ships six skills that both Claude Code and Codex load from the same 
 - D5: ui-design saves approved design choices to the project's `docs/design-system.md`, and ui-polish withholds a verdict when no baseline exists -- why: without a recorded reference, visual review drifts with taste -- by: user -- paths: skills/ui-design/SKILL.md skills/ui-polish/SKILL.md
 - D6: The vendored JavaFX guide's placeholder home path is allowed in `.privacy-allow` instead of editing the data -- why: vendored data stays unchanged so updates can be diffed against upstream -- by: observed -- paths: .privacy-allow
 
+- D7: The spec skill asks for approval with a plain-language summary (what changes, why now, what is left out, what happens without it) -- why: the user approved v1.4 from a short English spec without understanding its content -- by: user -- paths: skills/spec/SKILL.md
+
 ## Scope / Non-goals
 - In: the files under Changes by file and one commit.
 - Out: the evals runner and memory evals (step 4b), installing on the real machine (step 5).

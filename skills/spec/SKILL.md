@@ -88,4 +88,6 @@ When the spec will run without a person watching (overnight, a goal loop), add:
 
 ## After writing
 
-Show the path and a short summary. What happens next follows the tool's own instructions for approval and delegation (for Claude Code, the Phase boundary rules in its CLAUDE.md). When the user asked to review first, or the spec touches deletions, migrations, CI/CD, infrastructure or anything public, wait for approval.
+Show the path, then ask for approval with a plain summary in the user's language, written for someone who will not read the spec: what will be different when this is done, why now, what it deliberately leaves out, and what happens if it is not approved. Name anything the user would not expect from the title. An approval given without this summary is not informed, so do not treat a bare spec path as enough.
+
+What happens next follows the tool's own instructions for approval and delegation (for Claude Code, the Phase boundary rules in its CLAUDE.md). When the user asked to review first, or the spec touches deletions, migrations, CI/CD, infrastructure or anything public, wait for approval.
