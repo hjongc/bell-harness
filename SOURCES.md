@@ -12,5 +12,7 @@ Where each skill comes from and what changed. Third-party license texts are in `
 | `skills/ui-polish` | The author's earlier Codex skill `frontend-polish-review` | Own work | Tool-neutral browser options; a verdict needs a baseline (`withheld: no baseline` otherwise); PDF and print checks; evidence paths; configurable widths in `scripts/ui-check.mjs`. |
 | `skills/ui-design` | [ui-ux-pro-max](https://github.com/nextlevelbuilder/ui-ux-pro-max-skill) | MIT (`licenses/ui-ux-pro-max.txt`) | Renamed; scripts run as `python3 <skill-dir>/scripts/...`; `--design-system` optional; reads and records project design decisions in `docs/design-system.md`; adds `references/korean.md`. Data and scripts are unchanged and `scripts/tests/` is left out. |
 | `skills/away` | Own work | Own work | Adds an unattended roadmap briefing, approval handling and a return report. |
+| `skills/offline-verification` | Original workflow from the [offline pilot](docs/plans/v1.13-offline-skill-pilot.md) | Own work | Focuses on the real entry point, bounded test inputs and observable results. |
+| `skills/systematic-debugging` | Own work, informed by the [Superpowers workflow](https://github.com/obra/superpowers/blob/main/skills/systematic-debugging/SKILL.md) | Own work | Focuses on intermittent, unclear and repeated failures. The instructions are original. |
 
 The writing principles for the always-loaded instruction files follow the prompting guides published by Anthropic and OpenAI for their current models.

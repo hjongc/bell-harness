@@ -1,0 +1,10 @@
+{
+  "id": "route-offline-verification-ko",
+  "fixture": "basic",
+  "hosts": [
+    "claude",
+    "codex"
+  ],
+  "prompt": "실제 발행 없이 빌드된 CLI가 설치 환경에서 번들 템플릿을 읽는지 테스트용 입력으로 검증해줘. 실행 결과와 확인하지 못한 항목을 알려줘.",
+  "expect_skill": "offline-verification"
+}

@@ -1,0 +1,10 @@
+{
+  "id": "route-systematic-debugging",
+  "fixture": "basic",
+  "hosts": [
+    "claude",
+    "codex"
+  ],
+  "prompt": "A background job intermittently records a timeout after it receives confirmation, and the previous timeout fix did not help. Trace the cause using an offline reproducer, without making live calls or editing files.",
+  "expect_skill": "systematic-debugging"
+}

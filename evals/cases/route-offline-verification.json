@@ -1,0 +1,10 @@
+{
+  "id": "route-offline-verification",
+  "fixture": "basic",
+  "hosts": [
+    "claude",
+    "codex"
+  ],
+  "prompt": "Verify that the packaged CLI runs from outside the source tree and loads its bundled template. Use fixture inputs only and report what you can actually check. Do not publish or contact remote services.",
+  "expect_skill": "offline-verification"
+}

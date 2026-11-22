@@ -1,0 +1,10 @@
+{
+  "id": "route-systematic-debugging-ko",
+  "fixture": "basic",
+  "hosts": [
+    "claude",
+    "codex"
+  ],
+  "prompt": "재시도 후 같은 예약 작업이 간헐적으로 두 번 실행돼. 재현 조건이 불분명하니 가짜 시계와 저장 상태로 원인을 좁혀줘. 실제 작업은 실행하지 마.",
+  "expect_skill": "systematic-debugging"
+}

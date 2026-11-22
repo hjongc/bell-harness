@@ -316,6 +316,21 @@ class EvalsTest(unittest.TestCase):
         self.assertEqual(result.returncode, 1, result.stdout)
         self.assertIn("answer matches reject_answer", result.stdout)
 
+    def test_verification_and_debugging_route_on_both_hosts(self):
+        for skill in ("offline-verification", "systematic-debugging"):
+            for suffix in ("", "-ko"):
+                case = "route-" + skill + suffix
+                with self.subTest(case=case):
+                    self.both([skill], "ok")
+                    result = self.run_evals("--case", case)
+                    self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                    self.assertIn("EVALS: 2/2 passed", result.stdout)
+
+        self.both(["systematic-debugging"], "ok")
+        result = self.run_evals("--case", "route-offline-verification")
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertIn("EVALS: 0/2 passed", result.stdout)
+
     def test_usage_and_missing_host(self):
         self.both([], "x")
         self.assertEqual(self.run_evals("--case", "nope").returncode, 2)
@@ -326,7 +341,7 @@ class EvalsTest(unittest.TestCase):
 
     def test_case_files_are_consistent(self):
         files = sorted((ROOT / "evals/cases").glob("*.json"))
-        self.assertEqual(len(files), 20)
+        self.assertEqual(len(files), 24)
         for path in files:
             case = json.loads(path.read_text(encoding="utf-8"))
             self.assertEqual(case["id"], path.stem)
