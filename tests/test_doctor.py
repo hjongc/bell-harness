@@ -314,6 +314,100 @@ class DoctorTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stdout)
         self.assertIn("PASS commit messages: recent commits follow the rules", result.stdout)
 
+    def test_instruction_status_reports_worktree_and_index(self):
+        fx = self.fx
+        project = fx.tmp / "instruction-status"
+        init_repo(project, fx.env)
+        agents = project / "AGENTS.md"
+        removed = project / "removed" / "CLAUDE.md"
+        removed.parent.mkdir()
+        agents.write_text("# Project\n", encoding="utf-8")
+        removed.write_text("@AGENTS.md\n", encoding="utf-8")
+        (project / ".gitignore").write_text("ignored/\n", encoding="utf-8")
+        fx.git("add", "-A", cwd=project)
+        fx.git("commit", "-qm", "docs: seed project instructions", cwd=project)
+
+        agents.write_text("# Staged change\n", encoding="utf-8")
+        (project / "CLAUDE.md").write_text("@AGENTS.md\n", encoding="utf-8")
+        fx.git("add", "AGENTS.md", "CLAUDE.md", cwd=project)
+        agents.write_text("# Unstaged change\n", encoding="utf-8")
+        removed.unlink()
+        for name in ("local notes/AGENTS.md", "ignored/CLAUDE.md", "unrelated.txt"):
+            entry = project / name
+            entry.parent.mkdir(exist_ok=True)
+            entry.write_text("# Test data\n", encoding="utf-8")
+
+        monitor = project / ".git/fsmonitor-test"
+        monitor.write_text("#!/bin/sh\n: > .git/fsmonitor-ran\n", encoding="utf-8")
+        monitor.chmod(0o755)
+        fx.git("config", "core.fsmonitor", str(monitor), cwd=project)
+
+        def snapshot():
+            return {
+                path.relative_to(project): (path.stat().st_mtime_ns, path.read_bytes())
+                for path in project.rglob("*")
+                if path.is_file() and ".git" not in path.relative_to(project).parts
+            }
+
+        index = project / ".git/index"
+        index_before = (index.stat().st_mtime_ns, index.read_bytes())
+        worktree_before = snapshot()
+        args = ("--project-only", str(project))
+        default = self.doctor(*args)
+        self.assertEqual(default.returncode, 0, default.stdout)
+        self.assertNotIn("untracked instruction", default.stdout)
+        self.assertNotIn("uncommitted instruction", default.stdout)
+
+        result = self.doctor(*args, "--instruction-status")
+        self.assertEqual(result.returncode, default.returncode, result.stdout)
+        self.assertEqual(result.stdout.splitlines(), default.stdout.splitlines() + [
+            "WARN uncommitted instruction: 'AGENTS.md' (index=M, worktree=M)",
+            "WARN uncommitted instruction: 'CLAUDE.md' (index=A, worktree=.)",
+            "WARN untracked instruction: 'local notes/AGENTS.md'",
+            "WARN uncommitted instruction: 'removed/CLAUDE.md' (index=., worktree=D)",
+        ])
+        self.assertEqual((index.stat().st_mtime_ns, index.read_bytes()), index_before)
+        self.assertEqual(snapshot(), worktree_before)
+        self.assertFalse((project / ".git/fsmonitor-ran").exists())
+
+        fx.git("-c", "core.fsmonitor=false", "add", "-A", cwd=project)
+        fx.git("-c", "core.fsmonitor=false", "commit", "-qm", "docs: update project instructions", cwd=project)
+        result = self.doctor(*args, "--instruction-status")
+        self.assertEqual(result.returncode, 0, result.stdout)
+        self.assertIn("PASS instruction status: no uncommitted instructions", result.stdout)
+
+    def test_instruction_status_handles_unborn_branch_and_unavailable_status(self):
+        fx = self.fx
+        project = fx.tmp / "unborn"
+        init_repo(project, fx.env)
+        child = project / "child"
+        child.mkdir()
+        (child / "CLAUDE.md").write_text("@AGENTS.md\n", encoding="utf-8")
+        fx.git("add", "child/CLAUDE.md", cwd=project)
+
+        args = ("--project-only", str(project), "--instruction-status")
+        result = self.doctor(*args)
+        self.assertEqual(result.returncode, 0, result.stdout)
+        self.assertIn("WARN uncommitted instruction: 'child/CLAUDE.md' (index=A, worktree=.)", result.stdout)
+
+        result = self.doctor("--project-only", str(child), "--instruction-status")
+        self.assertEqual(result.returncode, 0, result.stdout)
+        self.assertIn("WARN instruction status: use the root of a Git checkout", result.stdout)
+        self.assertNotIn("WARN uncommitted instruction:", result.stdout)
+
+        (project / ".git/index").write_bytes(b"broken index")
+        result = self.doctor(*args)
+        self.assertEqual(result.returncode, 0, result.stdout)
+        self.assertIn("WARN instruction status: could not read Git status", result.stdout)
+        self.assertNotIn("PASS instruction status:", result.stdout)
+
+        for unsupported in (("--instruction-status",),
+                            ("--project", str(project), "--instruction-status"),
+                            args + ("--discovery",)):
+            with self.subTest(unsupported=unsupported):
+                result = self.doctor(*unsupported)
+                self.assertEqual(result.returncode, 2, result.stdout)
+
     def test_missing_project_directory_fails(self):
         result = self.doctor("--project-only", str(self.fx.tmp / "nope"))
         self.assertEqual(result.returncode, 1, result.stdout)

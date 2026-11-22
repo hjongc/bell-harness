@@ -2,7 +2,7 @@
 """Report whether this machine (and optionally a project) matches bell-harness.
 
 Usage: bin/doctor [--project <path>] [--discovery]
-       bin/doctor --project-only <path>
+       bin/doctor --project-only <path> [--instruction-status]
 Prints one `PASS|WARN|FAIL <check>: <detail>` line per check; exits 1 when any line is FAIL.
 """
 import argparse
@@ -278,6 +278,35 @@ def check_project(report, project):
                         path, count))
 
 
+def check_instruction_status(report, project):
+    git = ["git", "--no-optional-locks", "-C", str(project)]
+    code, root = run(git + ["rev-parse", "--show-toplevel"], stderr=subprocess.DEVNULL, binary=True)
+    if code != 0 or Path(os.fsdecode(root.removesuffix(b"\n"))).resolve() != project:
+        report.line("WARN", "instruction status", "use the root of a Git checkout")
+        return
+
+    # A status query should not invoke a configured fsmonitor hook.
+    code, output = run(git + ["-c", "core.fsmonitor=false", "status", "--porcelain=v1", "-z",
+                              "--untracked-files=all", "--no-renames", "--ignore-submodules=all", "--",
+                              ":(top,glob)**/AGENTS.md", ":(top,glob)**/CLAUDE.md"],
+                       stderr=subprocess.DEVNULL, binary=True)
+    if code != 0:
+        report.line("WARN", "instruction status", "could not read Git status")
+        return
+
+    entries = sorted((os.fsdecode(record[3:]), record[:2].decode("ascii"))
+                     for record in output.split(b"\0") if record)
+    for path, status in entries:
+        if status == "??":
+            report.line("WARN", "untracked instruction", repr(path))
+        else:
+            index, worktree = status.replace(" ", ".")
+            report.line("WARN", "uncommitted instruction",
+                        "{!r} (index={}, worktree={})".format(path, index, worktree))
+    if not entries:
+        report.line("PASS", "instruction status", "no uncommitted instructions")
+
+
 def check_commits(report, project):
     git = ["git", "-C", str(project)]
     code, _ = run(git + ["rev-parse", "--verify", "-q", "HEAD"])
@@ -384,7 +413,11 @@ def main():
     project.add_argument("--project", metavar="PATH", help="also check a project repository")
     project.add_argument("--project-only", metavar="PATH", help="check the project without machine checks")
     parser.add_argument("--discovery", action="store_true", help="ask claude and codex which skills they load")
+    parser.add_argument("--instruction-status", action="store_true",
+                        help="show uncommitted instruction files in a project-only check")
     args = parser.parse_args()
+    if args.instruction_status and args.project_only is None:
+        parser.error("--instruction-status requires --project-only")
     home = h.home_dir()
     report = Report(home)
     if args.project_only is not None:
@@ -393,7 +426,10 @@ def main():
         if not h.which("git"):
             report.line("FAIL", "prerequisite", "git")
             return 1
-        check_project(report, Path(args.project_only).resolve())
+        checkout = Path(args.project_only).resolve()
+        check_project(report, checkout)
+        if args.instruction_status:
+            check_instruction_status(report, checkout)
         return 1 if report.failed else 0
     check_prerequisites(report)
     old_roots = set(h.previous_roots(home))

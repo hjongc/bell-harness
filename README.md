@@ -39,6 +39,7 @@ Entries named `paseo*`, `synced` or `.system` are never touched, and setup refus
 bin/doctor                      # PASS/WARN/FAIL per check; exit 1 on any FAIL
 bin/doctor --project ~/code/app # also check project instructions, table paths, decisions and commit messages
 bin/doctor --project-only ~/code/app # check only project files and Git history
+bin/doctor --project-only ~/code/app --instruction-status # also show uncommitted instructions
 bin/doctor --discovery          # ask claude and codex which skills they actually load
 bin/setup --list-backups         # list IDs, active/restored state and manifest health
 bin/setup --restore <id>        # undo one backup (or: all), skipping anything changed since setup
@@ -51,6 +52,8 @@ The backup list is read-only and sorted newest first. A valid record describes t
 Restore checks each backup manifest before undoing its actions. If a retired item's saved or destination path has a symlinked parent, restore keeps that backup available for retry after the path is fixed. It undoes settings key by key, so settings changed after setup survive. Uninstalled plugins are not reinstalled automatically; restore prints the `claude plugin install` command.
 
 Codex rules match command prefixes. Both project diagnostic modes validate recorded commit messages with the harness policy and never run Git hooks. Use `--project-only` in a checkout without a harness installation. It cannot be combined with `--discovery`.
+
+Add `--instruction-status` to a project-only check at the checkout root to see changes to root and nested `AGENTS.md` and `CLAUDE.md` files. Untracked files have their own warning. For tracked files, `index` compares staging with the current commit, and `worktree` compares files on disk with staging. A dot marks an unchanged column. Git-ignored untracked files are omitted, and the query leaves the index and files intact.
 
 ## Skills
 
