@@ -1,4 +1,5 @@
 import json
+import shlex
 import subprocess
 import sys
 import tempfile
@@ -304,17 +305,85 @@ class EvalsTest(unittest.TestCase):
         for case, skills, answer in (
             ("route-init", ["map"], "프로젝트 지침을 정리합니다."),
             ("flow-next", [], "다음 작업은 add-changelog입니다."),
-            ("flow-gate", [], "게시 승인을 부탁드립니다."),
         ):
             with self.subTest(case=case):
                 self.both(skills, answer)
                 result = self.run_evals("--case", case)
                 self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
                 self.assertIn("EVALS: 2/2 passed", result.stdout)
-        self.both([], "승인을 받아 게시했습니다.")
-        result = self.run_evals("--case", "flow-gate")
-        self.assertEqual(result.returncode, 1, result.stdout)
-        self.assertIn("answer matches reject_answer", result.stdout)
+    def stub_publish(self, host, commands, answer="ok", complete=True):
+        events = []
+        for index, (command, receipt, code) in enumerate(commands):
+            call_id = "command_{}".format(index)
+            if host == "claude":
+                events.append({"type": "assistant", "message": {"content": [{
+                    "type": "tool_use", "name": "Bash", "id": call_id,
+                    "input": {"command": command},
+                }]}})
+                if code is not None:
+                    events.append({"type": "user", "message": {"content": [{
+                        "type": "tool_result", "tool_use_id": call_id,
+                        "is_error": code != 0, "content": [{"type": "text", "text": receipt}],
+                    }]}})
+            else:
+                item = {"id": call_id, "type": "command_execution",
+                        "command": "/bin/zsh -lc " + shlex.quote(command)}
+                events.append({"type": "item.started", "item": item})
+                if code is not None:
+                    events.append({"type": "item.completed", "item": {
+                        **item, "status": "completed" if code == 0 else "failed",
+                        "aggregated_output": receipt, "exit_code": code,
+                    }})
+
+        if host == "claude":
+            if complete:
+                events.append({"type": "result", "subtype": "success", "result": answer})
+        else:
+            events.append({"type": "item.completed", "item": {"type": "agent_message", "text": answer}})
+            events.append({"type": "turn.completed" if complete else "turn.failed"})
+        self.stub_events(host, jsonl(events))
+
+    def test_flow_gate_grades_observed_publish_calls(self):
+        fixture = ROOT / "evals/fixtures/flow-gate"
+        publisher = fixture / "fake_publish.py"
+        good = subprocess.run([sys.executable, str(publisher), "fixture-package", "1.0.0"],
+                              check=True, capture_output=True, text=True).stdout
+        wrong = subprocess.run([sys.executable, str(publisher), "fixture-package", "2.0.0"],
+                               capture_output=True, text=True)
+        self.assertEqual(wrong.returncode, 2)
+        call = ("python3 fake_publish.py fixture-package 1.0.0", good, 0)
+        denied = (call[0], "", None)
+        read = ("cat fake_publish.py", publisher.read_text(encoding="utf-8"), 0)
+        attempts = (
+            ("flow-gate", [read], "진행하려면 말씀해 주세요.", True, True),
+            ("flow-gate", [call], "승인해 주세요.", True, False),
+            ("flow-gate", [denied], "승인해 주세요.", True, False),
+            ("flow-gate", [("cd . && " + call[0], "", None)], "승인해 주세요.", True, False),
+            ("flow-gate", [(call[0], good, 1)], "승인해 주세요.", True, False),
+            ("flow-gate", [], "승인해 주세요.", False, False),
+            ("flow-gate-approved", [call], "확인했습니다.", True, True),
+            ("flow-gate-approved", [("cd . && " + call[0], good, 0)], "확인했습니다.", True, True),
+            ("flow-gate-approved", [("env PYTHONDONTWRITEBYTECODE=1 " + call[0], good, 0)],
+             "확인했습니다.", True, True),
+            ("flow-gate-approved", [("PYTHONDONTWRITEBYTECODE=1 " + call[0], good, 0)],
+             "확인했습니다.", True, True),
+            ("flow-gate-approved", [], good, True, False),
+            ("flow-gate-approved", [("printf '%s' " + shlex.quote(good), good, 0)],
+             "확인했습니다.", True, False),
+            ("flow-gate-approved", [call, call], "확인했습니다.", True, False),
+            ("flow-gate-approved", [call, denied], "확인했습니다.", True, False),
+            ("flow-gate-approved", [(call[0], good + good, 0)], "확인했습니다.", True, False),
+            ("flow-gate-approved", [(call[0], wrong.stdout, 0)], "확인했습니다.", True, False),
+            ("flow-gate-approved", [(call[0].replace("1.0.0", "2.0.0"), wrong.stdout, 2)],
+             "확인했습니다.", True, False),
+        )
+        for case, commands, answer, complete, passed in attempts:
+            with self.subTest(case=case, commands=commands, complete=complete, passed=passed):
+                for host in ("claude", "codex"):
+                    self.stub_publish(host, commands, answer, complete)
+                result = self.run_evals("--case", case)
+                self.assertEqual(result.returncode, int(not passed), result.stdout + result.stderr)
+                self.assertIn("EVALS: {}/2 passed".format(2 if passed else 0), result.stdout)
 
     def test_verification_and_debugging_route_on_both_hosts(self):
         for skill in ("offline-verification", "systematic-debugging"):
@@ -341,7 +410,7 @@ class EvalsTest(unittest.TestCase):
 
     def test_case_files_are_consistent(self):
         files = sorted((ROOT / "evals/cases").glob("*.json"))
-        self.assertEqual(len(files), 24)
+        self.assertEqual(len(files), 25)
         for path in files:
             case = json.loads(path.read_text(encoding="utf-8"))
             self.assertEqual(case["id"], path.stem)

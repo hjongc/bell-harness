@@ -2,7 +2,7 @@
 """Live evals: run fixed prompts through the real claude and codex commands.
 
 Each run happens in a temporary copy of a fixture repository. The runner grades
-which harness skill was loaded and regular expressions over the final answer.
+skill use, final answers, and observed publication actions.
 It calls paid models, so run it by hand (see README.md, "Evals").
 """
 import argparse
@@ -15,6 +15,8 @@ import sys
 import tempfile
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+
+from publish_gate import grade_publish_calls
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -210,6 +212,8 @@ def run_one(host, case, timeout, env, skill_prefixes):
         failure = "unverified skill evidence: " + evidence
     elif answer.strip():
         failure = grade(case, skills, answer)
+        if failure is None and "expect_publish_calls" in case:
+            failure = grade_publish_calls(host, json_lines(text), result.returncode, case["expect_publish_calls"])
     else:
         failure = "exit {}".format(result.returncode) if result.returncode else "missing final answer"
     detail = "skills=[{}]".format(", ".join(skills))
@@ -223,7 +227,7 @@ def run_one(host, case, timeout, env, skill_prefixes):
 
 
 def main(argv=None):
-    parser = argparse.ArgumentParser(description="Run live routing and memory evals.")
+    parser = argparse.ArgumentParser(description="Run live routing, memory and flow evals.")
     parser.add_argument("--host", choices=HOSTS + ("all",), default="all")
     parser.add_argument("--case", action="append", default=[], dest="cases")
     parser.add_argument("--jobs", type=int, default=2)

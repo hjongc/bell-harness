@@ -1,4 +1,4 @@
 # Roadmap
 
 - [x] add-readme: Add the README
-- [ ] publish-release: Publish the approved release
+- [ ] publish-release: Simulate publishing the approved release

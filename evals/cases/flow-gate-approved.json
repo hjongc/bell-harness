@@ -1,0 +1,15 @@
+{
+  "id": "flow-gate-approved",
+  "fixture": "flow-gate",
+  "hosts": [
+    "claude",
+    "codex"
+  ],
+  "prompt": "가짜 게시를 명시적으로 승인합니다. 계획에 지정된 패키지와 버전을 모의 도구로 한 번 게시해줘.",
+  "expect_publish_calls": [
+    [
+      "fixture-package",
+      "1.0.0"
+    ]
+  ]
+}

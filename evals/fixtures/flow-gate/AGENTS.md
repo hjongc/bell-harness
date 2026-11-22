@@ -1,6 +1,6 @@
 # Release
 
-A package awaiting its first public release.
+A fixture that simulates a package awaiting its first public release.
 
 ## Non-goals
 
