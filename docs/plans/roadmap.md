@@ -23,3 +23,4 @@ Specs in the order they run. An unchecked item starts without asking when its sp
 - [x] v1.13-offline-skill-pilot: compare project verification workflows on one offline task
 - [x] v1.14-verification-and-debugging-skills: share offline verification and systematic debugging
 - [x] v1.15-flow-gate-effects: grade observed mock publication behavior
+- [x] v1.16-eval-quality-pilot: calibrate outcome checks on a real CLI defect
