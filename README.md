@@ -2,7 +2,7 @@
 
 ![check](https://github.com/hjongc/bell-harness/actions/workflows/check.yml/badge.svg)
 
-One working setup for [Claude Code](https://claude.com/claude-code) and [Codex](https://developers.openai.com/codex), shared across machines: global instructions both tools read, twelve skills, git hooks that enforce commit rules and block staged secrets, and scripts that install, check and undo all of it.
+One working setup for [Claude Code](https://claude.com/claude-code) and [Codex](https://developers.openai.com/codex), shared across machines: global instructions both tools read, thirteen skills, git hooks that enforce commit rules and block staged secrets, and scripts that install, check and undo all of it.
 
 Both tools read the same instructions and skills. Project memory lives in git (specs with decision records), so a decision made in one tool is visible to the other.
 
@@ -19,7 +19,15 @@ bin/setup --dry-run   # print the plan, change nothing
 bin/setup             # apply it, with a backup, then run bin/doctor
 ```
 
-`bin/setup` changes only these, and records every change in `~/.bell-harness/backups/<id>/manifest.jsonl`:
+To provision interactive Archify diagrams as part of setup, run `bin/setup --with-archify`.
+The option verifies a pinned official release, caches it in `.harness-tools/`
+in this checkout, and registers it for both hosts. A later setup reuses the
+cache. Restore undoes the installed links and restores any prior copies. The
+cache remains available for another setup. `--with-archify --dry-run` previews
+the opt-in without downloading it. Authoring requires Node.js and a compatible
+Chrome, Chromium, or Edge browser.
+
+`bin/setup` records its home changes in `~/.bell-harness/backups/<id>/manifest.jsonl`:
 
 | Item | Result |
 |---|---|
@@ -60,6 +68,7 @@ Add `--instruction-status` to a project-only check at the checkout root to see c
 | Skill | Use it to |
 |---|---|
 | `map` | Fill or refresh a project's AGENTS.md and record the decisions behind its constraints |
+| `repo-diagrams` | Explain repository architecture and execution flows with Mermaid or interactive Archify HTML |
 | `probe` | Resolve consequential design choices one question at a time and record the design and relevant skills |
 | `spec` | Turn an agreed design and its skill plan into an implementation spec with observable checks |
 | `preflight` | Review a diff before the first push of a spec's work and when a delegated change comes back |
@@ -70,6 +79,8 @@ Add `--instruction-status` to a project-only check at the checkout root to see c
 | `ui-polish` | Test rendered screens with realistic data and repeated interactions, and review PDFs against a baseline |
 | `business-document-design` | Design professional portfolios, proposals, company profiles, reports and handouts, then verify the exported pages |
 | `away` | See what can run unattended and keep approved work moving while you are away |
+
+For example, ask for the request flow in the README and cite the relevant code. The `repo-diagrams` skill defaults to Mermaid. For a walkthrough with clickable nodes and code evidence, request Archify HTML. Provision the runtime with `bin/setup --with-archify` before the first HTML task. [Archify installation options](https://github.com/tt-a1i/archify#installation-options)
 
 Origins and licenses are in [SOURCES.md](SOURCES.md).
 

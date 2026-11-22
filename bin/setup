@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Install bell-harness into the home directory with a recorded backup, or undo an install.
 
-Usage: bin/setup [--dry-run]
+Usage: bin/setup [--with-archify] [--dry-run]
        bin/setup --restore <id>|all [--dry-run]
        bin/setup --list-backups
 """
@@ -14,11 +14,13 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import zipfile
 from pathlib import Path
 
 sys.dont_write_bytecode = True
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "lib"))
+import archify  # noqa: E402
 import harness as h  # noqa: E402
 
 
@@ -281,7 +283,7 @@ def run_doctor():
     return subprocess.call([sys.executable, str(ROOT / "bin/doctor")])
 
 
-def install(dry_run):
+def install(dry_run, with_archify=False):
     old_roots = set(h.previous_roots(HOME))
     errors, notes = preflight(old_roots)
     for note in notes:
@@ -290,6 +292,16 @@ def install(dry_run):
         for error in errors:
             say("setup: " + error)
         return 2
+    if with_archify and archify.cached_skill(ROOT) is None:
+        if dry_run:
+            say(f"would download and verify Archify {archify.VERSION} and link it for both hosts")
+        else:
+            try:
+                archify.provision(ROOT)
+            except (OSError, ValueError, zipfile.BadZipFile) as error:
+                say(f"setup: Archify install failed: {error}")
+                return 1
+            say(f"setup: cached Archify {archify.VERSION}")
     actions = plan(old_roots)
     if not actions:
         say("setup: nothing to do")
@@ -547,6 +559,7 @@ def main():
     parser = argparse.ArgumentParser(prog="setup", description="Install or restore bell-harness.")
     parser.add_argument("--dry-run", action="store_true", help="print the plan and change nothing")
     mode = parser.add_mutually_exclusive_group()
+    mode.add_argument("--with-archify", action="store_true", help="provision the optional Archify skill")
     mode.add_argument("--restore", metavar="ID|all", help="undo the actions of a backup")
     mode.add_argument("--list-backups", action="store_true", help="list backup IDs and validate their manifests")
     args = parser.parse_args()
@@ -561,7 +574,7 @@ def main():
         return list_backups()
     if args.restore:
         return restore(args.restore, args.dry_run)
-    return install(args.dry_run)
+    return install(args.dry_run, args.with_archify)
 
 
 HOME = h.home_dir()

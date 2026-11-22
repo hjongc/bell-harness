@@ -28,3 +28,5 @@ Specs in the order they run. An unchecked item starts without asking when its sp
 - [x] v1.18-check-fixture-performance: measure the remaining offline check bottleneck
 - [ ] v1.19-eval-guidance-comparison: compare new deliverables with and without the eval guidance (offline preflight passed, live approval pending)
 - [x] design-skill-selection: carry interview-driven specialist choices from probe into spec
+- [x] repo-diagrams: add Mermaid and optional interactive Archify workflows
+- [x] archify-setup: provision the pinned Archify runtime through setup

@@ -6,6 +6,8 @@ import re
 import subprocess
 from pathlib import Path
 
+import archify
+
 
 SKILL_DIRS = (".claude/skills", ".agents/skills")
 MANAGED_ROOTS = (".claude", ".agents", ".codex", ".bell-harness")
@@ -122,12 +124,20 @@ def is_managed(path, root, old_roots=()):
     return target is not None and any(inside(target, base) for base in (root, *old_roots))
 
 
-def skill_names(root):
+def skill_paths(root):
     skills = Path(root) / "skills"
-    if not skills.is_dir():
-        return []
-    return sorted(p.name for p in skills.iterdir()
-                  if (p / "SKILL.md").is_file() and not never_touch(p.name))
+    paths = {}
+    if skills.is_dir():
+        paths = {p.name: p for p in skills.iterdir()
+                 if (p / "SKILL.md").is_file() and not never_touch(p.name)}
+    package = archify.cached_skill(root)
+    if package is not None:
+        paths["archify"] = package
+    return paths
+
+
+def skill_names(root):
+    return sorted(skill_paths(root))
 
 
 def claude_md_line(root):
@@ -147,9 +157,9 @@ def desired_links(root, home):
     """(link path, target) pairs that setup creates."""
     root, home = Path(root), Path(home)
     links = []
-    for name in skill_names(root):
+    for name, path in sorted(skill_paths(root).items()):
         for directory in SKILL_DIRS:
-            links.append((home / directory / name, root / "skills" / name))
+            links.append((home / directory / name, path))
     links.append((home / ".codex/AGENTS.md", root / "global/AGENTS.md"))
     links.append((home / ".codex/rules/bell-harness.rules", root / "config/bell-harness.rules"))
     return links

@@ -3,9 +3,12 @@ import importlib.machinery
 import importlib.util
 import json
 import os
+import re
 import shutil
 import subprocess
+import sys
 import tempfile
+import zipfile
 import unittest
 from pathlib import Path
 
@@ -165,6 +168,32 @@ class Fixture(object):
                               env=self.env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                               universal_newlines=True)
 
+    def run_with_archify_archive(self, archive, digest, *args):
+        # Pin the fixture copy so setup and its doctor subprocess use the same digest.
+        module = self.harness / "lib/archify.py"
+        source = module.read_text(encoding="utf-8")
+        source, replaced = re.subn(r'^SHA256 = "[0-9a-f]{64}"$', f'SHA256 = "{digest}"', source, flags=re.M)
+        assert replaced == 1
+        module.write_text(source, encoding="utf-8")
+        runner = """
+from pathlib import Path
+from unittest.mock import patch
+import io
+import runpy
+import sys
+
+setup, archive, *args = sys.argv[1:]
+sys.path.insert(0, str(Path(setup).parent.parent / "lib"))
+import archify
+
+sys.argv = [setup, *args]
+with patch.object(archify.urllib.request, "urlopen", return_value=io.BytesIO(Path(archive).read_bytes())):
+    runpy.run_path(setup, run_name="__main__")
+"""
+        return subprocess.run(
+            [sys.executable, "-c", runner, str(self.harness / "bin/setup"), str(archive), *args],
+            cwd=self.tmp, env=self.env, capture_output=True, text=True)
+
     def backups(self):
         folder = self.home / ".bell-harness/backups"
         return sorted(p.name for p in folder.iterdir()) if folder.is_dir() else []
@@ -186,7 +215,7 @@ class SetupTests(unittest.TestCase):
 
     def assert_installed(self):
         fx, home, harness = self.fx, self.fx.home, self.fx.harness
-        for name in SKILLS:
+        for name in fx.skill_names:
             for folder in (".claude/skills", ".agents/skills"):
                 self.assertEqual(os.readlink(str(home / folder / name)), str(harness / "skills" / name))
         self.assertEqual(os.readlink(str(home / ".codex/AGENTS.md")), str(harness / "global/AGENTS.md"))
@@ -246,6 +275,73 @@ class SetupTests(unittest.TestCase):
         self.assertEqual(fx.settings(), fx.settings_before)
         self.assertEqual(fx.backups(), [])
         self.assertEqual(fx.claude_calls(), [])
+
+    def test_archify_setup_reuses_cache_and_restores_previous_skill(self):
+        fx = self.fx
+        archive = fx.tmp / "archify.zip"
+        with zipfile.ZipFile(archive, "w") as package:
+            package.writestr("archify/SKILL.md", "---\nname: archify\n---\n")
+            package.writestr("archify/bin/archify.mjs", "console.log('archify');\n")
+        digest = hashlib.sha256(archive.read_bytes()).hexdigest()
+        existing = fx.home / ".agents/skills/archify"
+        existing.mkdir()
+        (existing / "SKILL.md").write_text("previous skill", encoding="utf-8")
+
+        before = tree_snapshot(fx.home)
+        preview = fx.run("setup", "--with-archify", "--dry-run")
+        self.assertEqual(preview.returncode, 0, preview.stdout)
+        self.assertIn("would download and verify Archify", preview.stdout)
+        self.assertEqual(tree_snapshot(fx.home), before)
+        self.assertFalse((fx.harness / ".harness-tools").exists())
+        self.assertEqual(fx.backups(), [])
+
+        result = fx.run_with_archify_archive(archive, digest, "--with-archify")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("setup: cached Archify", result.stdout)
+        for directory in (".agents/skills", ".claude/skills"):
+            skill = fx.home / directory / "archify"
+            self.assertTrue(skill.is_symlink())
+            self.assertIn(".harness-tools", skill.resolve().parts)
+            self.assertEqual((skill / "bin/archify.mjs").read_text(encoding="utf-8"),
+                             "console.log('archify');\n")
+        cache = existing.resolve()
+
+        archive.write_bytes(b"unexpected response")
+        again = fx.run_with_archify_archive(archive, digest, "--with-archify")
+        self.assertEqual(again.returncode, 0, again.stdout + again.stderr)
+        self.assertIn("setup: nothing to do", again.stdout)
+        self.assertEqual(len(fx.backups()), 1)
+
+        restore = fx.run("setup", "--restore", fx.backups()[0])
+        self.assertEqual(restore.returncode, 0, restore.stdout)
+        self.assertEqual((existing / "SKILL.md").read_text(encoding="utf-8"), "previous skill")
+        self.assertFalse((fx.home / ".claude/skills/archify").exists())
+        self.assertTrue(cache.is_dir())
+
+    def test_archify_setup_rejects_unverified_archive(self):
+        fx = self.fx
+        archive = fx.tmp / "invalid.zip"
+        archive.write_bytes(b"unexpected response")
+        before = tree_snapshot(fx.home)
+        result = fx.run_with_archify_archive(archive, "0" * 64, "--with-archify")
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertIn("does not match the pinned SHA-256", result.stdout)
+        self.assertEqual(tree_snapshot(fx.home), before)
+        self.assertEqual(fx.backups(), [])
+        self.assertFalse((fx.harness / ".harness-tools").exists())
+
+    def test_archify_setup_rejects_linked_cache(self):
+        fx = self.fx
+        outside = fx.tmp / "cache-target"
+        outside.mkdir()
+        (fx.harness / ".harness-tools").symlink_to(outside, target_is_directory=True)
+        before = tree_snapshot(fx.home)
+        result = fx.run("setup", "--with-archify")
+        self.assertEqual(result.returncode, 1, result.stdout)
+        self.assertIn("Archify cache is a symlink", result.stdout)
+        self.assertEqual(list(outside.iterdir()), [])
+        self.assertEqual(tree_snapshot(fx.home), before)
+        self.assertEqual(fx.backups(), [])
 
     def test_removed_skill_loses_its_links(self):
         fx = self.fx

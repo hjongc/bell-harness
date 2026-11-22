@@ -5,3 +5,4 @@
 - Before attributing a decision to the user, check the session logs and separate a direct request from approval of an agent proposal; cite the message and its date.
 - Before choosing a UI style, arrange real content around the user's task and inspect the rendered screen for redundant decoration, generic copy, and difficult data.
 - When a user supplies several references, record which guidance came from each and identify references reviewed for context before summarizing what was adopted.
+- When adding a skill workflow with an optional external runtime, state what needs to be installed before its first use and verify availability before describing that workflow as ready.
