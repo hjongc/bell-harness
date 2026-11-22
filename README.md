@@ -2,7 +2,7 @@
 
 ![check](https://github.com/hjongc/bell-harness/actions/workflows/check.yml/badge.svg)
 
-One working setup for [Claude Code](https://claude.com/claude-code) and [Codex](https://developers.openai.com/codex), shared across machines: global instructions both tools read, eleven skills, git hooks that enforce commit rules and block staged secrets, and scripts that install, check and undo all of it.
+One working setup for [Claude Code](https://claude.com/claude-code) and [Codex](https://developers.openai.com/codex), shared across machines: global instructions both tools read, twelve skills, git hooks that enforce commit rules and block staged secrets, and scripts that install, check and undo all of it.
 
 Both tools read the same instructions and skills. Project memory lives in git (specs with decision records), so a decision made in one tool is visible to the other.
 
@@ -68,6 +68,7 @@ Add `--instruction-status` to a project-only check at the checkout root to see c
 | `systematic-debugging` | Reproduce and isolate an intermittent, unclear or recurring failure |
 | `ui-design` | Design around the user’s task, real content, and project references, with optional local catalog search |
 | `ui-polish` | Test rendered screens with realistic data and repeated interactions, and review PDFs against a baseline |
+| `business-document-design` | Design professional portfolios, proposals, company profiles, reports and handouts, then verify the exported pages |
 | `away` | See what can run unattended and keep approved work moving while you are away |
 
 Origins and licenses are in [SOURCES.md](SOURCES.md).
