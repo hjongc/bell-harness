@@ -36,6 +36,13 @@ Feature: the success condition (F1). Explore: what makes this cool.>
 ## Recommended approach
 <The approach the user chose and why.>
 
+## Skill plan
+| Skill | Requirement and reason | Phase |
+|---|---|---|
+| `<installed skill>` | <Agreed requirement this skill helps meet> | <When to use it> |
+
+<When applicable, record a capability gap and any external reference candidates by name and source link in a separate paragraph. Omit the section if neither a specialist nor a gap applies.>
+
 ## Decisions
 - D1: <decision> -- why: <reason> -- by: user|observed
 

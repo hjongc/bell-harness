@@ -60,8 +60,8 @@ Add `--instruction-status` to a project-only check at the checkout root to see c
 | Skill | Use it to |
 |---|---|
 | `map` | Fill or refresh a project's AGENTS.md and record the decisions behind its constraints |
-| `probe` | Pressure-test an idea or feature with one hard question at a time and record the design |
-| `spec` | Turn an agreed design into a spec another agent can execute without judgment calls |
+| `probe` | Resolve consequential design choices one question at a time and record the design and relevant skills |
+| `spec` | Turn an agreed design and its skill plan into an implementation spec with observable checks |
 | `preflight` | Review a diff before the first push of a spec's work and when a delegated change comes back |
 | `eval` | Compare a prompt, skill or model change on fixed cases |
 | `offline-verification` | Exercise a built, installed or normal entry point with offline inputs and record the evidence |
@@ -82,6 +82,8 @@ Decisions live in the spec that made them, one line each:
 ```
 
 A project's AGENTS.md has a Sources of truth table (task, where to look, constraints and the decision ids behind them), and the global instructions tell both tools to grep `docs/plans` before changing behavior. `python3 lib/decisions.py` and `bin/doctor --project` report malformed records, decisions that cite deleted paths, and table rows that cite missing or superseded decisions. A row may keep a historical citation alongside its active replacement. There is no automatic recall hook; see `docs/plans/v1-memory.md` for why.
+
+When a design choice can still change the outcome, `probe` asks one question at a time and presents the relevant installed skills with the design. It looks for external references only for a specific gap. `spec` carries the chosen skills, their reasons, and their usage phases into implementation and verification. A well-specified edit goes straight to execution.
 
 For a cross-session handoff, keep the last verified command and its result, outstanding work and the relevant decision ids in the active spec. On resume, check the current checkout before relying on the earlier result. Keep personal preferences in private local instructions.
 

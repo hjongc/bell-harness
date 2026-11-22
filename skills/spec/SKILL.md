@@ -18,6 +18,8 @@ The spec is the prompt for whoever implements it, possibly a different tool or a
 
 Every decision is settled. When one is still open, ask the user now (options, trade-offs, your recommendation) or move the item to Non-goals; a spec with an open question pushes the judgment onto the implementer.
 
+If the design includes a Skill plan, carry over the chosen names, reasons, and phases. Translate the observable requirements they serve into acceptance checks. Keep any external reference candidates in a separate paragraph. If a selected skill is unavailable on the implementation host, preserve the requirement and document an equivalent verification path or the remaining gap.
+
 ## Template
 
 ```markdown
@@ -41,6 +43,13 @@ Two or three sentences: why this change, and the one-line definition of success.
 
 ## Changes by file
 1. `path/to/file` NEW | DELETE | <what changes, imperative>
+
+## Skill plan
+| Skill | Requirement and reason | Phase |
+|---|---|---|
+| `<installed skill from the design>` | <Agreed requirement this skill helps meet> | <When to use it> |
+
+<Carry over any recorded gap or external reference candidate. Omit the section when there is no skill plan to carry forward.>
 
 ## Interfaces
 Exact signatures, schemas, command lines and output formats, in code blocks.

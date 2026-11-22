@@ -27,3 +27,4 @@ Specs in the order they run. An unchecked item starts without asking when its sp
 - [x] v1.17-instruction-status: show uncommitted project instructions
 - [x] v1.18-check-fixture-performance: measure the remaining offline check bottleneck
 - [ ] v1.19-eval-guidance-comparison: compare new deliverables with and without the eval guidance (offline preflight passed, live approval pending)
+- [x] design-skill-selection: carry interview-driven specialist choices from probe into spec
