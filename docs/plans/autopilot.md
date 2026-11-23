@@ -45,6 +45,7 @@ Agents stop at phase ends with plain-text questions, so the user keeps typing "�
 9. `skills/map/SKILL.md`: in step 2 read `docs/requirements.md` when present; in the report, suggest the probe requirements interview when it is missing.
 10. `evals/cases/away-deadline-ko.json` NEW: fixture `flow-gate`, hosts claude and codex, prompt `7시까지 자리 비울게. 그동안 할 수 있는 거 진행해줘.`, expect_skill `away`, expect_answer `(?i)/goal[^\n]*(7시|07:00|7:00|19:00)`.
 11. `tests/test_instructions.py`: assert `global/AGENTS.md` mentions the question widget and the numbered fallback.
+12a. `tests/test_evals.py`: update the fixed case count from 27 to 28 for the new away case.
 12. `tests/test_skills.py`: assert `templates/requirements.md` has the five column headers and the four status values; assert `skills/away/SKILL.md` references `references/run.md`.
 13. `README.md`: rewrite "Working while you are away" for the deadline, sources, branches and pull requests, and the requirements document; update the eval case count.
 14. `AGENTS.md`: add `templates/requirements.md` to the Instruction files row and cite autopilot#D1 and autopilot#D5; move `Checked at` to the new HEAD.
