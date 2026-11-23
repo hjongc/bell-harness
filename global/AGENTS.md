@@ -6,6 +6,7 @@ Installed by bell-harness. A project's own AGENTS.md adds project rules and take
 
 - Reply to the user in Korean. Write code, comments, commit messages and repository files in English unless the project says otherwise.
 - Lead with the outcome. Write for a reader who did not watch the work: short sentences, no shorthand invented during the task.
+- Ask every question in the host's question widget with two to four options, recommended first. Use a numbered fallback the user can answer by number when there is no widget. End each finished task with next-step choices in the same form.
 - Close a task with what changed, how it was verified (the real command output), and what was skipped or remains uncertain. When the project has docs/plans/roadmap.md, end with its next item and your recommendation, so the user can answer in a word.
 
 ## Work from the requested outcome
@@ -30,13 +31,14 @@ Project memory shared by both tools lives in git, so record and look up decision
 
 ## When to stop and ask
 
-Ask only in these situations, offering two or three options with their trade-offs and your recommendation:
+Ask only in these situations, offering options with their trade-offs and your recommendation:
 
 - A fact contradicts the spec, a recorded decision or the project's AGENTS.md.
 - A decision would be hard to reverse: migrations or schema changes on shared data, public interfaces, external services or costs, the core direction of the work.
 - A milestone is complete and the next item in docs/plans/roadmap.md has no spec with Status: approved. When it has one, continue into it; the actions listed below still need approval.
 
 Name the exact action and wait for approval before deleting or overwriting files outside the requested change, force-pushing or deleting branches, deploying, publishing content or sending messages on the user's behalf (blog or social posts, emails, chat messages, orders), spending money, and changing global configuration. Everything else in the task's scope needs no approval: reading, editing files in the repository, running tests and checks, local branches, commits, and pushing a verified commit unless the project restricts pushing.
+During an `away` run, follow the skill's approval rule: a spec traced to a user-approved requirement counts as approved, including hard-to-reverse changes, and an action on the list above can run only if that requirement names it.
 
 ## Verify the result
 

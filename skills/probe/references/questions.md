@@ -4,7 +4,8 @@ Adapted from gstack office-hours (MIT, see SOURCES.md). Read the section for the
 
 ## Rules for every mode
 
-- One question per turn. Wait for the answer before the next one. When the tool has a question widget, use it; otherwise ask in plain text as `Q<n>: ...`.
+- Use the host's question widget for every question, with two to four options and the recommendation first. When no widget is available, give numbered options answerable by number. End a finished task with next-step choices in the same form.
+- Batch up to four independent questions in one prompt. Ask dependent questions one at a time and use each answer before asking the next.
 - After each answer, restate the decision or fact in one line, then move on.
 - Take a position on every answer and say what evidence would change it. That is rigor, not hedging and not false certainty.
 - Challenge the strongest version of the user's claim, not a weaker one.

@@ -21,6 +21,11 @@ class InstructionTests(unittest.TestCase):
         lines = (ROOT / "global/CLAUDE.md").read_text(encoding="utf-8").splitlines()
         self.assertEqual(lines[0], "@AGENTS.md")
 
+    def test_shared_instructions_offer_question_choices(self):
+        text = (ROOT / "global/AGENTS.md").read_text(encoding="utf-8")
+        self.assertIn("question widget", text)
+        self.assertIn("numbered fallback", text)
+
     def test_project_template_headings(self):
         lines = (ROOT / "templates/AGENTS.md").read_text(encoding="utf-8").splitlines()
         for heading in (
