@@ -1,0 +1,11 @@
+{
+  "id": "away-deadline-ko",
+  "fixture": "flow-gate",
+  "hosts": [
+    "claude",
+    "codex"
+  ],
+  "prompt": "7시까지 자리 비울게. 그동안 할 수 있는 거 진행해줘.",
+  "expect_skill": "away",
+  "expect_answer": "(?i)/goal[^\\n]*(7시|07:00|7:00|19:00)"
+}

@@ -93,6 +93,7 @@ When the spec will run without a person watching (overnight, a goal loop), add:
 2. Three failures on one item: stop that item, record the last error in `docs/plans/blocked.md`, move on.
 3. Do not touch: <CI config, migrations, secrets, unrelated modules>.
 4. No force-push, branch deletion, destructive migration or unlisted dependency.
+5. Size budget: net +<n> lines; over budget means no pull request.
 ```
 
 ## After writing

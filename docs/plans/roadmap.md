@@ -30,3 +30,4 @@ Specs in the order they run. An unchecked item starts without asking when its sp
 - [x] design-skill-selection: carry interview-driven specialist choices from probe into spec
 - [x] repo-diagrams: add Mermaid and optional interactive Archify workflows
 - [x] archify-setup: provision the pinned Archify runtime through setup
+- [x] autopilot: work through the whole absence, ask with buttons

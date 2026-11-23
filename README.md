@@ -102,7 +102,11 @@ For a cross-session handoff, keep the last verified command and its result, outs
 
 ## Working while you are away
 
-Ask what is queued before you leave, then set a goal for the range you want the agent to work through. While you are away, the agent records questions and actions that need approval in `docs/plans/blocked.md` and continues with approved items that can proceed independently.
+Tell the agent when you will return and choose the roadmap range. The `away` briefing offers choices in the host's question widget or as numbered options and gives you a `/goal` sentence with the return time and timezone.
+
+The run works through approved roadmap items in that range, then user-approved `todo` requirements, then audits for bugs, waste and opportunities to simplify code. It checks the deadline before each item and finishes the current item if time runs out mid-item. Each item gets a branch named for the change. Passing checks and fresh review lead to a regular pull request with the requirement, check output and diff size. Work that depends on an unmerged branch targets that branch. You merge the pull requests.
+
+Use the `probe` requirements interview to create or update `docs/requirements.md` from the [requirements template](templates/requirements.md). The agent parks unresolved questions and actions that need approval in `docs/plans/blocked.md`. On return it leads with the pull requests and their check results, then offers the parked decisions as choices.
 
 ## Start a project
 
@@ -114,7 +118,7 @@ Copy `templates/AGENTS.md` into the project and fill it in, or ask an agent to r
 python3 evals/run.py [--host claude|codex|all] [--case <id>]... [--jobs N] [--timeout S] [--repeat N] [--json <file>]
 ```
 
-Each of the 25 cases sends a fixed prompt to the real `claude` and `codex` commands in a temporary copy of a fixture repository (`evals/fixtures/`), then grades skill use, final answers or observed mock actions. Fourteen routing cases use English and Korean prompts. They cover design, spec, eval, project initialization, preflight, offline verification, systematic debugging and small edits that should load no skill. Six memory cases check that a recorded decision is applied, an unrelated task stays quiet about it, a superseded decision loses to the newer one, a missing reason is reported as missing, a Korean question retrieves the English decision and its rationale, and a single observation stays optional. Three flow cases check roadmap order and count actual mock publish attempts with and without explicit approval. Two away cases check skill routing when you ask what is queued or ask the agent to continue a roadmap with an approval gate. The runner calls paid models, so it is not part of `scripts/check`. Run it after installing the harness and whenever a model or an instruction changes.
+Each of the 26 cases sends a fixed prompt to the real `claude` and `codex` commands in a temporary copy of a fixture repository (`evals/fixtures/`), then grades skill use, final answers or observed mock actions. Fourteen routing cases use English and Korean prompts. They cover design, spec, eval, project initialization, preflight, offline verification, systematic debugging and small edits that should load no skill. Six memory cases check that a recorded decision is applied, an unrelated task stays quiet about it, a superseded decision loses to the newer one, a missing reason is reported as missing, a Korean question retrieves the English decision and its rationale, and a single observation stays optional. Three flow cases check roadmap order and count actual mock publish attempts with and without explicit approval. Three away cases cover the queue briefing, the approval gate and the return time in the goal sentence. The runner calls paid models, so it is not part of `scripts/check`. Run it after installing the harness and whenever a model or an instruction changes.
 
 Each attempt needs a nonempty final answer. Routing cases require observable skill content from a successful Codex command or a successful result matched to Claude's Skill call. Incomplete evidence fails a routing case with an explicit unverified reason. Answer-only cases still grade the final answer. Fixture Git commands and host processes run without inherited repository-local Git variables.
 

@@ -50,6 +50,17 @@ class SkillTests(unittest.TestCase):
                 for ref in LOCAL_REF.findall(text):
                     self.assertTrue((SKILLS / name / ref).exists(), ref)
 
+    def test_requirements_template_fields_and_statuses(self):
+        text = (ROOT / "templates/requirements.md").read_text(encoding="utf-8")
+        self.assertIn("| ID | Requirement | Acceptance criteria | Status | Spec |", text.splitlines())
+        for status in ("todo", "in-progress", "done", "dropped"):
+            with self.subTest(status=status):
+                self.assertIn(f"`{status}`", text)
+
+    def test_away_skill_references_run_procedure(self):
+        text = (SKILLS / "away/SKILL.md").read_text(encoding="utf-8")
+        self.assertIn("references/run.md", text)
+
     def test_third_party_skills_have_licenses(self):
         self.assertTrue((ROOT / "licenses/ui-ux-pro-max.txt").is_file())
         self.assertTrue((ROOT / "licenses/gstack.txt").is_file())
