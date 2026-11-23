@@ -13,6 +13,7 @@
 ## Sources of truth
 
 Where to look before a kind of change. Planned work is listed in order in docs/plans/roadmap.md. Write paths in the second column in backticks or as Markdown links so bin/doctor can check them. Decisions live in `docs/plans/<slug>.md` under `## Decisions`; cite them as `<slug>#D<n>`.
+Requirements live in `docs/requirements.md`.
 
 | Task | Look at | Constraints and why |
 |---|---|---|
