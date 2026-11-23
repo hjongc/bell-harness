@@ -31,3 +31,5 @@ HOME_PATHS = [
 ]
 EMAIL = re.compile(r"[A-Za-z0-9._%+-]+@(?:[A-Za-z0-9-]+\.)+[A-Za-z]{2,}\b")
 EMAIL_ALLOW = ("@users.noreply.github.com", "@example.com", "@example.org", "@example.net")
+# GitHub commits the test merge of every pull request with this system address.
+EMAIL_EXACT_ALLOW = ("noreply@github.com",)

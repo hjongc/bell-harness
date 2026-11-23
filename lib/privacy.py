@@ -5,7 +5,7 @@ import subprocess
 from pathlib import Path
 
 from harness import symlinked_directory
-from patterns import EMAIL, EMAIL_ALLOW, HOME_PATHS, SECRET_PATTERNS
+from patterns import EMAIL, EMAIL_ALLOW, EMAIL_EXACT_ALLOW, HOME_PATHS, SECRET_PATTERNS
 
 
 def in_git_work_tree(root):
@@ -90,7 +90,8 @@ def kinds_in_line(line, terms):
         for _ in pattern.finditer(line):
             yield "home-path"
     for match in EMAIL.finditer(line):
-        if not match.group().lower().endswith(EMAIL_ALLOW):
+        email = match.group().lower()
+        if email not in EMAIL_EXACT_ALLOW and not email.endswith(EMAIL_ALLOW):
             yield "email"
     folded_line = line.casefold()
     for term in terms:

@@ -41,6 +41,7 @@ class PrivacyTests(unittest.TestCase):
             ("home-path", "/ho" + "me/fixture"),
             ("home-path", "C:" + "\\Users" + "\\fixture\\code"),
             ("email", "fixture.user" + "@mail" + ".invalid"),
+            ("email", "fixture-noreply" + "@github" + ".com"),
             ("private-term", private_term.upper()),
         ]
         allowed = [
@@ -50,6 +51,7 @@ class PrivacyTests(unittest.TestCase):
             'password = "{{LONG_TOKEN_123}}"',
             'api_key = "<your-long-key-123>"',
             "fixture" + "@users.noreply.github.com",
+            "GitHub <noreply" + "@github" + ".com>",
         ]
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
