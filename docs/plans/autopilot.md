@@ -1,6 +1,6 @@
 # autopilot: work through the whole absence, ask with buttons
 
-Status: approved
+Status: implemented (9ca80ec)
 
 ## Context
 
