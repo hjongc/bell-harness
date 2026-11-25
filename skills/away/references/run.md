@@ -6,7 +6,7 @@ Resolve the agreed return time to a dated deadline in its timezone before starti
 
 ## Each item
 
-1. **Choose the base.** Use a separate branch per item named for the work, such as `feat/<topic>`, `fix/<topic>` or `refactor/<topic>`. Start independent items from the project integration branch. If the item depends on an unmerged branch, base it on that branch and name the dependency and base in the pull request. Keep existing working changes out of the item.
+1. **Choose the base.** Use a separate branch per item named for the work, such as `feat/<topic>`, `fix/<topic>` or `refactor/<topic>`. Start independent items from the project integration branch. If the item depends on an unmerged branch, base it on that branch and name the dependency and base in the pull request. Keep existing working changes out of the item. When a link in `~/.claude/skills` or `~/.agents/skills` resolves into the checkout, follow Separate folder below.
 2. **Set the scope.** Follow the approved roadmap spec if there is one. For a `todo` requirement, use the `spec` skill to write a spec that cites the approved requirement ID and preserves its acceptance criteria. The requirement supplies approval within its scope, so continue without a separate spec approval prompt. Set `Size budget: net +<n> lines` before implementing any self-written spec, including an audit fix. Record the expected file scope, checks and approval gates. Park any gap that would require a new product decision or an action on the approval list that the requirement does not name.
 3. **Implement and check.** Keep the acceptance criteria in view. On the item branch, link the spec and move a tracked requirement to `in-progress` while working. Include its proposed `done` status and any applicable roadmap checkbox in the change to verify. Run `scripts/check` or the project check and the spec's done condition against the full change. Save the real command output. Finalize the completion updates only after the checks and review pass.
 4. **Get a fresh review.** Give a fresh reviewer only the requirement, the spec and the complete diff against the chosen base, including new files. For a roadmap item or audit without a requirements row, give the corresponding source task or observed finding as the requirement. Ask whether the acceptance criteria are met and whether a smaller change would suffice. Count lines added and removed against that base. Net size is additions minus removals. Report the counts and the applicable budget in this format (use `n/a` when an existing approved spec has no budget):
@@ -19,6 +19,12 @@ Resolve the agreed return time to a dated deadline in its timezone before starti
 5. **Commit and open the pull request.** Split commits by meaning. Follow the project preflight before pushing. Push the branch when authorized, then open a regular pull request. Its body names the source requirement or finding, links the spec, includes the actual check commands and output, and appends the review verdict and size. For stacked work, target the dependency branch and name it in the body. The user merges. If `gh auth status` fails or `gh` is unavailable, push the verified branch if allowed, list it as awaiting a pull request and ask about opening it on return.
 
 Keep the three-failure rule from the skill. Record the last error and continue with independent work. Avoid starting another item that depends on a parked result.
+
+## Separate folder
+
+Switching branches in a linked checkout changes the skills in use, so leave its branch alone. Record `git branch --show-current` and `git rev-parse HEAD` there. Work in a folder outside it from `git worktree add <folder> -b <branch> <base>`, or `git worktree add <folder> <branch>` for an existing branch. Copy Git-ignored inputs that the checks read, such as a private term list, into the folder before the first check. Keep `docs/plans/blocked.md` in the original checkout.
+
+When work on the item ends, for any reason and before pushing, read both values in the original checkout again and compare them with the recorded ones. If either differs, park the item. Remove the folder with `git worktree remove <folder>` once its branch is pushed or parked. The command keeps the branch, refuses while uncommitted work exists, and deletes ignored files, so save any evidence first.
 
 ## Audit and requirement gaps
 
