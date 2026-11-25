@@ -25,7 +25,7 @@ Decisions live in `docs/plans/<slug>.md` under `## Decisions`; `python3 lib/deci
 | Evals | `evals/run.py`, `evals/cases/`, `evals/fixtures/`, `tests/test_evals.py` | Grade observable behavior (v1-evals#D1); live runs stay out of `scripts/check` (v1-evals#D2); Korean answers count (v1-evals#D4); isolate fixture Git context and require graded output (v1.6-regression-loops#D4, v1.6-regression-loops#D5) |
 | Decision records | `lib/decisions.py`, `tests/test_decisions.py` | Format and no recall hook (v1-memory#D1, v1-memory#D2) |
 | Roadmap and flow | `docs/plans/roadmap.md`, `global/AGENTS.md` | Next item runs without asking only when its spec is approved (v1.1-flow-init#D1, v1.1-flow-init#D2) |
-| Anything tracked | `lib/privacy.py`, `.private-terms`, `.privacy-allow`, `.github/workflows/check.yml` | Public repository, no personal data (v1-repo#D3). Note a missing private term list (privacy-terms-note#D1). Scan link text and preserve the Git working tree boundary (v1.7-path-boundaries#D2) |
+| Anything tracked | `lib/privacy.py`, `.private-terms`, `.privacy-allow`, `.github/workflows/check.yml` | Public repository, no personal data (v1-repo#D3). Scan link text and preserve the Git working tree boundary (v1.7-path-boundaries#D2) |
 
 Checked at 865f4f8
 
