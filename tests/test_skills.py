@@ -61,6 +61,12 @@ class SkillTests(unittest.TestCase):
         text = (SKILLS / "away/SKILL.md").read_text(encoding="utf-8")
         self.assertIn("references/run.md", text)
 
+    def test_away_run_protects_the_linked_checkout(self):
+        text = (SKILLS / "away/references/run.md").read_text(encoding="utf-8")
+        for part in ("git worktree add <folder> -b <branch> <base>", "git branch --show-current",
+                     "git rev-parse HEAD", "git status --porcelain", "compare them after it"):
+            self.assertIn(part, text)
+
     def test_third_party_skills_have_licenses(self):
         self.assertTrue((ROOT / "licenses/ui-ux-pro-max.txt").is_file())
         self.assertTrue((ROOT / "licenses/gstack.txt").is_file())
