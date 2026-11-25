@@ -22,17 +22,9 @@ Keep the three-failure rule from the skill. Record the last error and continue w
 
 ## Separate folder
 
-Use `git worktree add <folder> -b <branch> <base>` with a folder outside the checkout, without `-b` for an existing branch. Copy Git-ignored inputs that the checks read, such as a private term list, into it before the first check. Run the following in the original folder before the item, and again before opening its pull request. If the output differs, open no pull request and park the item. Write `docs/plans/blocked.md` in the original folder only after that comparison.
+Switching branches in a linked checkout changes the skills in use, so leave its branch alone. Record `git branch --show-current` and `git rev-parse HEAD` there. Work in a folder outside it from `git worktree add <folder> -b <branch> <base>`, or `git worktree add <folder> <branch>` for an existing branch. Copy Git-ignored inputs that the checks read, such as a private term list, into the folder before the first check. Keep `docs/plans/blocked.md` in the original checkout.
 
-```sh
-git branch --show-current
-git rev-parse HEAD
-git status --porcelain --untracked-files=all
-git diff HEAD --binary | git hash-object --stdin
-git -c core.quotePath=false ls-files -o --exclude-standard | git hash-object --no-filters --stdin-paths
-```
-
-After the branch is pushed or parked, run `git worktree remove <folder>`, which keeps the branch and refuses while uncommitted work exists.
+When work on the item ends, for any reason and before pushing, compare the two recorded values. If either differs, park the item. Remove the folder with `git worktree remove <folder>` once its branch is pushed or parked. The command keeps the branch, refuses while uncommitted work exists, and deletes ignored files, so save any evidence first.
 
 ## Audit and requirement gaps
 

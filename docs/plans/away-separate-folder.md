@@ -1,6 +1,6 @@
 # away-separate-folder: keep unattended work out of the linked checkout
 
-Status: draft (first review failed; corrected version is over the size budget and waits for the user)
+Status: approved
 
 ## Context
 
@@ -10,20 +10,20 @@ Size budget: net +60 lines.
 
 ## Decisions
 
-- D1: Keep unattended work on the linked checkout in a separate folder and compare the original before and after -- why: switching branches there changes the skills in use, approved by the user on 2026-11-25 -- by: user -- paths: skills/away/references/run.md
-- D2: Use a Git worktree, and fingerprint file contents as well as status -- why: status alone stays the same when an already changed file changes again -- by: observed -- paths: skills/away/references/run.md
+- D1: Keep unattended work on the linked checkout in a separate folder -- why: switching branches there changes the skills in use, approved by the user on 2026-11-25 -- by: user -- paths: skills/away/references/run.md
+- D2: Compare only the branch and the commit -- why: the user chose this on 2026-11-25 after two versions that compared file contents failed review, accepting that an accidental file edit goes unnoticed -- by: user -- paths: skills/away/references/run.md
 - D3: Copy ignored check inputs into the folder first -- why: a worktree lacks the private term list, and the privacy scan then reports clean without it -- by: observed -- paths: skills/away/references/run.md
 
 ## Changes by file
 
 1. `skills/away/references/run.md`: the condition in step 1 and the Separate folder section.
-2. `tests/test_skills.py`: runs the documented commands in a temporary repository.
+2. `tests/test_skills.py`: the procedure keeps its commands and the comparison.
 3. `README.md`, `docs/requirements.md`, `docs/plans/roadmap.md`, this spec.
 
 ## Acceptance tests
 
-1. The procedure states when to use a separate folder and which values to compare.
-2. In a temporary repository with uncommitted work, an item in a separate folder leaves the documented output unchanged, and a content change in a modified or untracked file changes it.
+1. The procedure states when to use a separate folder, which two values to compare and when.
+2. One run in a temporary repository with uncommitted work: branch and commit of the original stay the same while the item is committed in the folder, and removal refuses while uncommitted work exists.
 3. `scripts/check` exits 0 with `GUARD: real home unchanged`.
 
 Live host behavior was not exercised.
