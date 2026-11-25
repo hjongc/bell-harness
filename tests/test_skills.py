@@ -1,7 +1,10 @@
 import re
+import subprocess
+import tempfile
 import unittest
+from pathlib import Path
 
-from harness_env import ROOT
+from harness_env import ROOT, init_repo, make_env
 
 
 SKILLS = ROOT / "skills"
@@ -61,11 +64,33 @@ class SkillTests(unittest.TestCase):
         text = (SKILLS / "away/SKILL.md").read_text(encoding="utf-8")
         self.assertIn("references/run.md", text)
 
-    def test_away_run_protects_the_linked_checkout(self):
+    def test_away_folder_check_detects_changes(self):
         text = (SKILLS / "away/references/run.md").read_text(encoding="utf-8")
-        for part in ("git worktree add <folder> -b <branch> <base>", "git branch --show-current",
-                     "git rev-parse HEAD", "git status --porcelain", "compare them after it"):
-            self.assertIn(part, text)
+        script = text.split("## Separate folder", 1)[1].split("```sh\n", 1)[1].split("```", 1)[0]
+        with tempfile.TemporaryDirectory() as tmp:
+            env, repo, folder = make_env(Path(tmp)), Path(tmp) / "repo", Path(tmp) / "item"
+            init_repo(repo, env)
+
+            def run(*command, cwd=repo):
+                return subprocess.check_output(command, cwd=cwd, env=env, text=True)
+
+            (repo / "a").write_text("one\n")
+            run("git", "add", "a")
+            run("git", "commit", "-q", "-m", "chore: start")
+            (repo / "a").write_text("draft\n")
+            (repo / "new").mkdir()
+            (repo / "new/초안").write_text("draft\n")
+            before = run("sh", "-c", script)
+            run("git", "worktree", "add", "-q", str(folder), "-b", "feat/x", "main")
+            (folder / "b").write_text("two\n")
+            run("git", "add", "b", cwd=folder)
+            run("git", "commit", "-q", "-m", "feat: add b", cwd=folder)
+            run("git", "worktree", "remove", str(folder))
+            self.assertEqual(run("sh", "-c", script), before)
+            for path in ("a", "new/초안"):
+                (repo / path).write_text("changed\n")
+                self.assertNotEqual(run("sh", "-c", script), before, path)
+                (repo / path).write_text("draft\n")
 
     def test_third_party_skills_have_licenses(self):
         self.assertTrue((ROOT / "licenses/ui-ux-pro-max.txt").is_file())
