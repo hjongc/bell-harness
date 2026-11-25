@@ -13,6 +13,9 @@ sys.path.insert(0, str(ROOT / "lib"))
 from privacy import scan
 
 
+NO_TERMS = "PRIVACY: note: no .private-terms file, private terms were not checked\n"
+
+
 class PrivacyTests(unittest.TestCase):
     def run_fixture_scan(self, root, env=None):
         return subprocess.run(
@@ -77,7 +80,7 @@ class PrivacyTests(unittest.TestCase):
 
         self.assertEqual(result.returncode, 0)
         self.assertEqual(result.stdout, "PRIVACY: clean\n")
-        self.assertEqual(result.stderr, "")
+        self.assertEqual(result.stderr, NO_TERMS)
 
     def test_scans_symlink_text_without_reading_tracked_descendants(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -101,7 +104,7 @@ class PrivacyTests(unittest.TestCase):
 
         self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
         self.assertEqual(result.stdout, "PRIVACY: tracked:1: email\n")
-        self.assertEqual(result.stderr, "")
+        self.assertEqual(result.stderr, NO_TERMS)
 
     def test_incomplete_allow_rule_reports_location_without_hiding_findings(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -114,7 +117,7 @@ class PrivacyTests(unittest.TestCase):
         self.assertIn("PRIVACY: .privacy-allow:2: expected a path glob and detection kind", result.stdout)
         self.assertIn("PRIVACY: sample.txt:1: email", result.stdout)
         self.assertNotIn("incomplete-rule", result.stdout + result.stderr)
-        self.assertEqual(result.stderr, "")
+        self.assertEqual(result.stderr, NO_TERMS)
 
     def test_repository_is_clean(self):
         self.assertEqual(scan(ROOT), [])

@@ -137,6 +137,11 @@ def main():
             print(f"GUARD: changed {name}")
         if not changed:
             print("GUARD: real home unchanged")
+    root = Path(__file__).resolve().parents[1]
+    sys.path.insert(0, str(root / "lib"))
+    from privacy import terms_note
+    if terms_note(root):
+        print(terms_note(root), file=sys.stderr)
     return 0 if passed and not changed else 1
 
 

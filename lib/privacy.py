@@ -2,6 +2,7 @@ import argparse
 import fnmatch
 import os
 import subprocess
+import sys
 from pathlib import Path
 
 from harness import symlinked_directory
@@ -99,6 +100,13 @@ def kinds_in_line(line, terms):
             yield "private-term"
 
 
+def terms_note(root):
+    """Return a note when the untracked private term list is missing, or None."""
+    if (Path(root) / ".private-terms").is_file():
+        return None
+    return "PRIVACY: note: no .private-terms file, private terms were not checked"
+
+
 def scan(root):
     root = Path(root)
     in_git = in_git_work_tree(root)
@@ -134,11 +142,14 @@ def scan(root):
 def main():
     parser = argparse.ArgumentParser(description="Check repository files and history for private data.")
     parser.add_argument("root", nargs="?", type=Path, default=Path(__file__).resolve().parents[1])
-    hits = scan(parser.parse_args().root)
+    root = parser.parse_args().root
+    hits = scan(root)
     for location, kind in hits:
         print(f"PRIVACY: {location}: {kind}")
     if not hits:
         print("PRIVACY: clean")
+    if terms_note(root):
+        print(terms_note(root), file=sys.stderr)
     return int(bool(hits))
 
 
