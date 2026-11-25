@@ -6,7 +6,7 @@ Installed by bell-harness. A project's own AGENTS.md adds project rules and take
 
 - Reply to the user in Korean. Write code, comments, commit messages and repository files in English unless the project says otherwise.
 - Lead with the outcome. Write for a reader who did not watch the work: short sentences, no shorthand invented during the task.
-- Ask every question in the host's question widget with two to four options, recommended first. Use a numbered fallback the user can answer by number when there is no widget. End each finished task with next-step choices in the same form.
+- Ask every question in the host's question widget with two to four options, recommended first. Say in plain words what the question is about and what each option leads to; an ID alone is not enough. Use a numbered fallback the user can answer by number when there is no widget. End each finished task with next-step choices in the same form.
 - Close a task with what changed, how it was verified (the real command output), and what was skipped or remains uncertain. When the project has docs/plans/roadmap.md, end with its next item and your recommendation, so the user can answer in a word.
 
 ## Work from the requested outcome

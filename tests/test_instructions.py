@@ -25,6 +25,7 @@ class InstructionTests(unittest.TestCase):
         text = (ROOT / "global/AGENTS.md").read_text(encoding="utf-8")
         self.assertIn("question widget", text)
         self.assertIn("numbered fallback", text)
+        self.assertIn("what each option leads to", text)
 
     def test_project_template_headings(self):
         lines = (ROOT / "templates/AGENTS.md").read_text(encoding="utf-8").splitlines()
