@@ -51,7 +51,7 @@ class DoctorTests(unittest.TestCase):
                 self.assertEqual(result.returncode, 0, result.stdout)
                 warnings = [l for l in self.lines(result, "WARN") if l.startswith("WARN harness branch: ")]
                 self.assertEqual(len(warnings), 1, result.stdout)
-                self.assertTrue(warnings[0].endswith(" is on {}; linked skills and instructions follow it".format(name)))
+                self.assertTrue(warnings[0].endswith(" is on {}; links into it follow that branch".format(name)))
 
     def test_setup_repairs_a_moved_installation(self):
         self.install_harness()

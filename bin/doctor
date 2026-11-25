@@ -136,7 +136,7 @@ def check_leftovers(report, home, settings, old_roots):
     if code == 0 and branch == "main":
         report.line("PASS", "harness branch", branch)
     elif code == 0:
-        report.line("WARN", "harness branch", "{} is on {}; linked skills and instructions follow it".format(ROOT, branch or "a detached HEAD"))
+        report.line("WARN", "harness branch", "{} is on {}; links into it follow that branch".format(ROOT, branch or "a detached HEAD"))
     if h.which("codex"):
         code, output = run(["codex", "mcp", "list"])
         names = {line.split()[0] for line in output.splitlines() if line.split()}
