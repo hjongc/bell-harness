@@ -1,6 +1,6 @@
 # away-separate-folder: keep unattended work out of the linked checkout
 
-Status: approved
+Status: implemented
 
 ## Context
 
@@ -31,3 +31,15 @@ Live host behavior was not exercised.
 ## Done criteria
 
 Acceptance 1-3 hold and only the files above changed.
+
+## Verification
+
+One run of acceptance 2 printed:
+
+```text
+branch and commit unchanged; own edits kept:  M a ?? untracked
+refused while uncommitted work exists
+removed when clean, branch kept: feat/x
+existing branch form works
+branch switch detected
+```

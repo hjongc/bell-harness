@@ -32,4 +32,4 @@ Specs in the order they run. An unchecked item starts without asking when its sp
 - [x] archify-setup: provision the pinned Archify runtime through setup
 - [x] autopilot: work through the whole absence, ask with buttons
 - [x] doctor-branch: show the branch of the harness checkout
-- [ ] away-separate-folder: keep unattended work out of the linked checkout
+- [x] away-separate-folder: keep unattended work out of the linked checkout

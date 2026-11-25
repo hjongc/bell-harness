@@ -24,7 +24,7 @@ Keep the three-failure rule from the skill. Record the last error and continue w
 
 Switching branches in a linked checkout changes the skills in use, so leave its branch alone. Record `git branch --show-current` and `git rev-parse HEAD` there. Work in a folder outside it from `git worktree add <folder> -b <branch> <base>`, or `git worktree add <folder> <branch>` for an existing branch. Copy Git-ignored inputs that the checks read, such as a private term list, into the folder before the first check. Keep `docs/plans/blocked.md` in the original checkout.
 
-When work on the item ends, for any reason and before pushing, compare the two recorded values. If either differs, park the item. Remove the folder with `git worktree remove <folder>` once its branch is pushed or parked. The command keeps the branch, refuses while uncommitted work exists, and deletes ignored files, so save any evidence first.
+When work on the item ends, for any reason and before pushing, read both values in the original checkout again and compare them with the recorded ones. If either differs, park the item. Remove the folder with `git worktree remove <folder>` once its branch is pushed or parked. The command keeps the branch, refuses while uncommitted work exists, and deletes ignored files, so save any evidence first.
 
 ## Audit and requirement gaps
 

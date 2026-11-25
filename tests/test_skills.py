@@ -64,7 +64,7 @@ class SkillTests(unittest.TestCase):
     def test_away_run_leaves_the_linked_checkout_alone(self):
         text = (SKILLS / "away/references/run.md").read_text(encoding="utf-8")
         for part in ("follow Separate folder below", "git worktree add <folder> -b <branch> <base>",
-                     "git branch --show-current", "git rev-parse HEAD", "before pushing, compare"):
+                     "git branch --show-current", "git rev-parse HEAD", "compare them with the recorded ones"):
             self.assertIn(part, text)
 
     def test_third_party_skills_have_licenses(self):
