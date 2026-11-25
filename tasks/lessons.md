@@ -6,3 +6,5 @@
 - Before choosing a UI style, arrange real content around the user's task and inspect the rendered screen for redundant decoration, generic copy, and difficult data.
 - When a user supplies several references, record which guidance came from each and identify references reviewed for context before summarizing what was adopted.
 - When adding a skill workflow with an optional external runtime, state what needs to be installed before its first use and verify availability before describing that workflow as ready.
+- Before adding tooling or designs for the user's personal material to this public repository, ask whether they belong in a private one; approval of a design or a pull request does not settle visibility.
+- Before telling the user that a skill is installed or live, check its link in both hosts and read every FAIL line of `bin/doctor`, not only the end of the output.
