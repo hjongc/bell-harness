@@ -40,6 +40,19 @@ class DoctorTests(unittest.TestCase):
         for line in result.stdout.splitlines():
             self.assertRegex(line, r"^(PASS|WARN|FAIL) [^:]+: ")
 
+    def test_harness_branch_is_reported(self):
+        self.install_harness()
+        self.assertIn("PASS harness branch: main", self.doctor().stdout.splitlines())
+        for command, name in ((("switch", "-q", "-c", "feat/example"), "feat/example"),
+                              (("switch", "-q", "--detach"), "a detached HEAD")):
+            with self.subTest(name=name):
+                subprocess.run(["git", "-C", str(self.fx.harness), *command], env=self.fx.env, check=True)
+                result = self.doctor()
+                self.assertEqual(result.returncode, 0, result.stdout)
+                warnings = [l for l in self.lines(result, "WARN") if l.startswith("WARN harness branch: ")]
+                self.assertEqual(len(warnings), 1, result.stdout)
+                self.assertTrue(warnings[0].endswith(" is on {}; links into it follow that branch".format(name)))
+
     def test_setup_repairs_a_moved_installation(self):
         self.install_harness()
         fx = self.fx
