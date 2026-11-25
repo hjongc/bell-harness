@@ -16,7 +16,7 @@ Size budget: net +45 lines.
 
 1. `global/AGENTS.md`: one sentence in the question rule.
 2. `tests/test_instructions.py`: the rule stays.
-3. `docs/plans/roadmap.md`, this spec, and the `AGENTS.md` row for instruction files.
+3. This spec and the `AGENTS.md` row for instruction files.
 
 ## Acceptance tests
 
