@@ -233,6 +233,7 @@ class HookFilesTests(unittest.TestCase):
                 hook = HOOKS / name
                 mode = hook.lstat().st_mode
                 self.assertTrue(stat.S_ISREG(mode))
-                self.assertEqual(stat.S_IMODE(mode), 0o755)
+                # Git stores only the executable bit; the rest of the mode follows the umask.
+                self.assertEqual(mode & stat.S_IRWXU, stat.S_IRWXU)
                 if name in CHAIN_HOOKS:
                     self.assertEqual(hook.read_bytes(), chain)
