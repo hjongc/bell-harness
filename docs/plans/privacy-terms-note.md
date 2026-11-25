@@ -17,7 +17,7 @@ Size budget: net +70 lines.
 1. `lib/privacy.py`: the note.
 2. `scripts/check`: the same note at the end.
 3. `tests/test_privacy.py`: three tests that required an empty stderr without a list now require the note.
-4. `docs/plans/roadmap.md`, this spec, and the `AGENTS.md` row for tracked files.
+4. This spec and the `AGENTS.md` row for tracked files.
 
 ## Acceptance tests
 

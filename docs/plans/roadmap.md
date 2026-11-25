@@ -31,4 +31,3 @@ Specs in the order they run. An unchecked item starts without asking when its sp
 - [x] repo-diagrams: add Mermaid and optional interactive Archify workflows
 - [x] archify-setup: provision the pinned Archify runtime through setup
 - [x] autopilot: work through the whole absence, ask with buttons
-- [x] privacy-terms-note: say when private terms were not checked
