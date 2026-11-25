@@ -104,7 +104,7 @@ For a cross-session handoff, keep the last verified command and its result, outs
 
 Tell the agent when you will return and choose the roadmap range. The `away` briefing offers choices in the host's question widget or as numbered options and gives you a `/goal` sentence with the return time and timezone.
 
-The run works through approved roadmap items in that range, then user-approved `todo` requirements, then audits for bugs, waste and opportunities to simplify code. It checks the deadline before each item and finishes the current item if time runs out mid-item. Each item gets a branch named for the change. Passing checks and fresh review lead to a regular pull request with the requirement, check output and diff size. Work that depends on an unmerged branch targets that branch. You merge the pull requests.
+The run works through approved roadmap items in that range, then user-approved `todo` requirements, then audits for bugs, waste and opportunities to simplify code. It checks the deadline before each item and finishes the current item if time runs out mid-item. Each item gets a branch named for the change, in a separate folder when the checkout supplies your installed skills. Passing checks and fresh review lead to a regular pull request with the requirement, check output and diff size. Work that depends on an unmerged branch targets that branch. You merge the pull requests.
 
 Use the `probe` requirements interview to create or update `docs/requirements.md` from the [requirements template](templates/requirements.md). The agent parks unresolved questions and actions that need approval in `docs/plans/blocked.md`. On return it leads with the pull requests and their check results, then offers the parked decisions as choices.
 
